@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 
+const API_BASE_URL = 'http://localhost:8080/api';
 const CartContext = createContext();
 
 export const useCart = () => {
@@ -22,8 +23,8 @@ export const CartProvider = ({ children }) => {
   }, []);
 
   const calcularPrecioFinal = (prod) => {
-    const precioBase = Number(prod.precioOriginal || prod.precio || 0);
-    const porcentajeDesc = Number(prod.porcentaje_descuento || prod.descuento || 0);
+    const precioBase = Number(prod.precio || 0);
+    const porcentajeDesc = Number(prod.oferta?.porcentajeDescuento || prod.porcentaje_descuento || 0);
 
     if (porcentajeDesc > 0 && porcentajeDesc < 100) {
       return Math.round(precioBase * (1 - porcentajeDesc / 100));
@@ -31,7 +32,7 @@ export const CartProvider = ({ children }) => {
     return precioBase;
   };
 
-  // Cargar productos exclusivamente desde MySQL si hay usuario activo
+  // Cargar elementos del carrito desde Spring Boot (H2)
   const cargarCarrito = useCallback(async () => {
     const userId = obtenerIdUsuario(usuario);
 
@@ -43,24 +44,25 @@ export const CartProvider = ({ children }) => {
 
     setCargandoCarrito(true);
     try {
-      const res = await fetch(`http://localhost:5000/api/carrito?usuario_id=${userId}`);
+      const res = await fetch(`${API_BASE_URL}/carrito?usuario_id=${userId}`);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
           const itemsFormateados = data.map(item => {
-            const precioBase = Number(item.precio_original || item.precio || 0);
-            const porcentajeDesc = Number(item.porcentaje_descuento || item.descuento || 0);
-            const precioFinal = calcularPrecioFinal({ precio: precioBase, porcentaje_descuento: porcentajeDesc });
+            const productoObj = item.producto || {};
+            const precioBase = Number(productoObj.precio || 0);
+            const porcentajeDesc = Number(productoObj.oferta?.porcentajeDescuento || 0);
+            const precioFinal = calcularPrecioFinal(productoObj);
 
             return {
-              id: item.producto_id || item.id,
-              id_carrito: item.id_carrito || item.id,
-              nombre: item.nombre,
-              descripcion: item.descripcion,
+              id: item.id, // ID único del registro en la tabla 'carrito'
+              producto_id: productoObj.id,
+              nombre: productoObj.nombre,
+              descripcion: productoObj.descripcion,
               precioOriginal: precioBase,
               precio: precioFinal,
               porcentaje_descuento: porcentajeDesc,
-              imagen: item.imagen,
+              imagen: productoObj.imagen,
               cantidad: Number(item.cantidad)
             };
           });
@@ -68,7 +70,7 @@ export const CartProvider = ({ children }) => {
         }
       }
     } catch (err) {
-      console.error('Error cargando carrito de MySQL:', err);
+      console.error('Error cargando carrito desde Spring Boot:', err);
       setItemsCarrito([]);
     } finally {
       setCargandoCarrito(false);
@@ -79,69 +81,53 @@ export const CartProvider = ({ children }) => {
     cargarCarrito();
   }, [cargarCarrito]);
 
-  // Agregar producto (Verifica autenticación previa)
+  // Agregar producto al carrito en Spring Boot
   const agregarAlCarrito = async (producto) => {
     const userId = obtenerIdUsuario(usuario);
     if (!userId) {
       return { exito: false, requiereLogin: true };
     }
 
-    const precioBase = Number(producto.precioOriginal || producto.precio || 0);
-    const porcentajeDesc = Number(producto.porcentaje_descuento || producto.descuento || 0);
-    const precioFinal = calcularPrecioFinal({ precio: precioBase, porcentaje_descuento: porcentajeDesc });
-
-    const productoConOferta = {
-      ...producto,
-      precioOriginal: precioBase,
-      precio: precioFinal,
-      porcentaje_descuento: porcentajeDesc
-    };
-
-    setItemsCarrito(prevItems => {
-      const existe = prevItems.find(item => item.id === producto.id);
-      if (existe) {
-        return prevItems.map(item =>
-          item.id === producto.id ? { ...item, cantidad: item.cantidad + 1 } : item
-        );
-      }
-      return [...prevItems, { ...productoConOferta, cantidad: 1 }];
-    });
-
     try {
-      await fetch('http://localhost:5000/api/carrito', {
+      const res = await fetch(`${API_BASE_URL}/carrito`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           usuario_id: userId,
           producto_id: producto.id,
-          cantidad: 1,
-          precio_unitario: precioFinal
+          cantidad: 1
         })
       });
-      return { exito: true };
+
+      if (res.ok) {
+        await cargarCarrito(); // Recargar el estado del carrito
+        return { exito: true };
+      }
     } catch (err) {
-      console.error('Error al guardar en BD:', err);
-      return { exito: true };
+      console.error('Error al guardar en BD Spring Boot:', err);
     }
+    return { exito: false };
   };
 
-  const actualizarCantidad = async (productoId, nuevaCantidad) => {
+  // Actualizar la cantidad de un item por su ID de carrito
+  const actualizarCantidad = async (itemId, nuevaCantidad) => {
     const userId = obtenerIdUsuario(usuario);
     if (!userId) return;
 
     if (nuevaCantidad <= 0) {
-      await eliminarDelCarrito(productoId);
+      await eliminarDelCarrito(itemId);
       return;
     }
 
+    // Actualización optimista de UI
     setItemsCarrito(prevItems =>
       prevItems.map(item =>
-        item.id === productoId ? { ...item, cantidad: nuevaCantidad } : item
+        item.id === itemId ? { ...item, cantidad: nuevaCantidad } : item
       )
     );
 
     try {
-      await fetch(`http://localhost:5000/api/carrito/${productoId}`, {
+      await fetch(`${API_BASE_URL}/carrito/${itemId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -149,26 +135,30 @@ export const CartProvider = ({ children }) => {
           cantidad: nuevaCantidad
         })
       });
+      await cargarCarrito();
     } catch (err) {
-      console.error('Error actualizando cantidad en BD:', err);
+      console.error('Error actualizando cantidad en Spring Boot:', err);
     }
   };
 
-  const eliminarDelCarrito = async (productoId) => {
+  // Eliminar un item del carrito por su ID
+  const eliminarDelCarrito = async (itemId) => {
     const userId = obtenerIdUsuario(usuario);
     if (!userId) return;
 
-    setItemsCarrito(prevItems => prevItems.filter(item => item.id !== productoId));
+    setItemsCarrito(prevItems => prevItems.filter(item => item.id !== itemId));
 
     try {
-      await fetch(`http://localhost:5000/api/carrito/${productoId}?usuario_id=${userId}`, {
+      await fetch(`${API_BASE_URL}/carrito/${itemId}?usuario_id=${userId}`, {
         method: 'DELETE'
       });
+      await cargarCarrito();
     } catch (err) {
-      console.error('Error eliminando producto de BD:', err);
+      console.error('Error eliminando producto de Spring Boot:', err);
     }
   };
 
+  // Vaciar completamente el carrito del usuario
   const limpiarCarrito = async () => {
     const userId = obtenerIdUsuario(usuario);
     setItemsCarrito([]);
@@ -176,11 +166,11 @@ export const CartProvider = ({ children }) => {
 
     if (userId) {
       try {
-        await fetch(`http://localhost:5000/api/carrito/vaciar?usuario_id=${userId}`, {
+        await fetch(`${API_BASE_URL}/carrito/vaciar?usuario_id=${userId}`, {
           method: 'DELETE'
         });
       } catch (err) {
-        console.error('Error vaciando carrito en BD:', err);
+        console.error('Error vaciando carrito en Spring Boot:', err);
       }
     }
   };

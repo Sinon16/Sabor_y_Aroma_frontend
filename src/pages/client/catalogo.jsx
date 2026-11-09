@@ -3,7 +3,9 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 
-export default function catalogo() {
+const API_BASE_URL = 'http://localhost:8080/api';
+
+export default function Catalogo() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const categoriaURL = searchParams.get('cat') || 'todas';
@@ -26,12 +28,12 @@ export default function catalogo() {
       setErrorBD('');
 
       const [resProd, resCat] = await Promise.all([
-        fetch('http://localhost:5000/api/productos'),
-        fetch('http://localhost:5000/api/categorias')
+        fetch(`${API_BASE_URL}/productos`),
+        fetch(`${API_BASE_URL}/categorias`)
       ]);
 
       if (!resProd.ok || !resCat.ok) {
-        throw new Error('Error de comunicación con el servidor.');
+        throw new Error('Error de comunicación con Spring Boot.');
       }
 
       const dataProd = await resProd.json();
@@ -75,28 +77,28 @@ export default function catalogo() {
   };
 
   const handleAgregarAlPedido = async (producto) => {
-  if (!usuario) {
-    setMensajeToast('⚠️ Debes iniciar sesión para agregar productos al pedido.');
-    setTimeout(() => {
-      setMensajeToast('');
-      navigate('/login');
-    }, 2000);
-    return;
-  }
+    if (!usuario) {
+      setMensajeToast('⚠️ Debes iniciar sesión para agregar productos al pedido.');
+      setTimeout(() => {
+        setMensajeToast('');
+        navigate('/login');
+      }, 2000);
+      return;
+    }
 
-  const resultado = await agregarAlCarrito(producto);
-  if (resultado?.requiereLogin) {
-    setMensajeToast('⚠️ Debes iniciar sesión para agregar productos al pedido.');
-    setTimeout(() => {
-      setMensajeToast('');
-      navigate('/login');
-    }, 2000);
-    return;
-  }
+    const resultado = await agregarAlCarrito(producto);
+    if (resultado?.requiereLogin) {
+      setMensajeToast('⚠️ Debes iniciar sesión para agregar productos al pedido.');
+      setTimeout(() => {
+        setMensajeToast('');
+        navigate('/login');
+      }, 2000);
+      return;
+    }
 
-  setMensajeToast(`¡"${producto.nombre}" agregado al pedido!`);
-  setTimeout(() => setMensajeToast(''), 3000);
-};
+    setMensajeToast(`¡"${producto.nombre}" agregado al pedido!`);
+    setTimeout(() => setMensajeToast(''), 3000);
+  };
 
   const verDetalle = (prod) => {
     setProductoDetalle(prod);
@@ -110,9 +112,15 @@ export default function catalogo() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const productosFiltrados = categoriaURL === 'todas'
+  // Extrae el nombre de la categoría del objeto de Spring Boot
+  const productosFiltrados = (categoriaURL === 'todas' || !categoriaURL)
     ? productos
-    : productos.filter(p => p.categoria === categoriaURL);
+    : productos.filter(p => {
+        const nombreCat = typeof p.categoria === 'object' 
+          ? p.categoria?.nombreCategoria 
+          : p.categoria;
+        return nombreCat?.trim().toLowerCase() === categoriaURL.trim().toLowerCase();
+      });
 
   const obtenerRecomendados = (idActual) => {
     const disponibles = productos.filter(p => p.id !== idActual);
@@ -162,9 +170,9 @@ export default function catalogo() {
             <div className="detalle-info">
               <h2>{productoDetalle.nombre}</h2>
               <span className="precio">{formatearPrecio(productoDetalle.precio)}</span>
-              {productoDetalle.porcentaje_descuento && (
+              {productoDetalle.oferta && (
                 <span className="badge-oferta">
-                  {productoDetalle.porcentaje_descuento}% OFF
+                  {productoDetalle.oferta.porcentajeDescuento}% OFF
                 </span>
               )}
               <p>{productoDetalle.descripcion}</p>
@@ -214,28 +222,23 @@ export default function catalogo() {
               <li>
                 <a 
                   href="#" 
-                  className={categoriaURL === 'todas' ? 'active' : ''}
+                  className={categoriaURL === 'todas' || !categoriaURL ? 'active' : ''}
                   onClick={(e) => { e.preventDefault(); setSearchParams({}); }}
                 >
                   🍽️ Todo
                 </a>
               </li>
               {categorias.map((cat) => (
-                <li key={cat.id_categoria}>
+                <li key={cat.idCategoria}>
                   <a 
                     href="#" 
-                    className={categoriaURL === cat.nombre_categoria ? 'active' : ''}
+                    className={categoriaURL.toLowerCase() === cat.nombreCategoria.toLowerCase() ? 'active' : ''}
                     onClick={(e) => { 
                       e.preventDefault(); 
-                      setSearchParams({ cat: cat.nombre_categoria }); 
+                      setSearchParams({ cat: cat.nombreCategoria }); 
                     }}
                   >
-                    {cat.nombre_categoria === 'pizzas-hamburguesas' && '🍕 Pizzas y Hamburguesas'}
-                    {cat.nombre_categoria === 'saludable' && '🥗 Opción Saludable'}
-                    {cat.nombre_categoria === 'postres' && '🍰 Postres'}
-                    {cat.nombre_categoria === 'bebidas' && '🥤 Bebidas'}
-                    {!['pizzas-hamburguesas', 'saludable', 'postres', 'bebidas'].includes(cat.nombre_categoria) && 
-                      cat.nombre_categoria.replace('-', ' ')}
+                    {cat.nombreCategoria}
                   </a>
                 </li>
               ))}

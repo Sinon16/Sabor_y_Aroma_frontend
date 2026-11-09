@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
 
+const API_BASE_URL = 'http://localhost:8080/api';
+
 export default function Navbar() {
   const { usuario, cerrarSesion, esAdministrador } = useAuth();
   const { obtenerTotalItems } = useCart();
@@ -15,7 +17,7 @@ export default function Navbar() {
 
   const cargarCategorias = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/categorias');
+      const res = await fetch(`${API_BASE_URL}/categorias`);
       if (res.ok) {
         const data = await res.json();
         setCategorias(data);
@@ -54,9 +56,9 @@ export default function Navbar() {
     setDropdownAbierto(false);
     setMenuMobileAbierto(false);
     if (nombreCat) {
-      navigate(`/categorias?cat=${encodeURIComponent(nombreCat)}`);
+      navigate(`/catalogo?cat=${encodeURIComponent(nombreCat)}`);
     } else {
-      navigate('/categorias');
+      navigate('/catalogo');
     }
   };
 
@@ -98,7 +100,7 @@ export default function Navbar() {
             <li className="dropdown-categorias-container" ref={dropdownRef}>
               <div className="dropdown-trigger-wrapper">
                 <Link 
-                  to="/categorias" 
+                  to="/catalogo" 
                   className="nav-link-categorias" 
                   onClick={() => setMenuMobileAbierto(false)}
                 >
@@ -122,9 +124,9 @@ export default function Navbar() {
                     </button>
                   </li>
                   {categorias.map((cat) => (
-                    <li key={cat.id_categoria}>
-                      <button type="button" onClick={() => handleSeleccionarCategoria(cat.nombre_categoria)}>
-                        {cat.nombre_categoria}
+                    <li key={cat.idCategoria}>
+                      <button type="button" onClick={() => handleSeleccionarCategoria(cat.nombreCategoria)}>
+                        {cat.nombreCategoria}
                       </button>
                     </li>
                   ))}
@@ -143,7 +145,7 @@ export default function Navbar() {
 
             <li className="cart-item-nav">
               <Link to="/carrito" className="cart-btn" onClick={() => setMenuMobileAbierto(false)}>
-                🛒 Mi Pedido ({obtenerTotalItems()})
+                🛒 Mi Pedido ({obtenerTotalItems ? obtenerTotalItems() : 0})
               </Link>
             </li>
           </ul>
@@ -156,7 +158,7 @@ export default function Navbar() {
             <>
               <span className="user-welcome">Hola, <strong>{usuario.nombre}</strong></span>
               <span className="separator">|</span>
-              {esAdministrador() && (
+              {esAdministrador && esAdministrador() && (
                 <>
                   <Link to="/admin" className="admin-link">⚙️ Panel Administrador</Link>
                   <span className="separator">|</span>

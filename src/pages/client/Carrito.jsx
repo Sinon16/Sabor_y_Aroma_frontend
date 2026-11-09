@@ -71,7 +71,7 @@ export default function Carrito() {
             {itemsCarrito.length === 0 ? (
               <div className="empty-cart-box">
                 <p>Tu carrito está vacío.</p>
-                <Link to="/categorias" className="btn-primary">
+                <Link to="/catalogo" className="btn-primary">
                   Ir al Menú
                 </Link>
               </div>
@@ -166,7 +166,6 @@ export default function Carrito() {
               )}
             </div>
 
-            {/* BOTONES LIMPIAR Y PAGAR */}
             <div className="cart-action-buttons-row">
               <button 
                 type="button" 

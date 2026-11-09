@@ -2,7 +2,11 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import FloatingLabel from 'react-bootstrap/FloatingLabel';
 import Form from 'react-bootstrap/Form';
+import { GoogleLogin } from '@react-oauth/google';
+import { jwtDecode } from 'jwt-decode';
 import { useAuth } from '../../context/AuthContext';
+
+const API_BASE_URL = 'http://localhost:8080/api';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -13,41 +17,88 @@ export default function Login() {
   const { iniciarSesion } = useAuth();
   const navigate = useNavigate();
 
+  const redirigirSegunRol = (usuario) => {
+    const esAdmin = Boolean(
+      usuario.esadmin === true || 
+      usuario.esadmin === 1 || 
+      usuario.esAdmin === true || 
+      usuario.esAdmin === 1 ||
+      usuario.email?.toLowerCase().endsWith('@profesor.duoc.cl')
+    );
+
+    if (esAdmin) {
+      navigate('/admin');
+    } else {
+      navigate('/');
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setCargando(true);
 
     try {
-      const res = await fetch('http://localhost:5000/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
+      const resultado = await iniciarSesion(email, password);
 
-      const data = await res.json();
-
-      if (res.ok) {
-        iniciarSesion(data.usuario);
-
-        const esAdmin = Boolean(
-          data.usuario.esadmin === 1 || 
-          data.usuario.esadmin === true || 
-          data.usuario.esAdmin === 1 ||
-          data.usuario.esAdmin === true
-        );
-
-        if (esAdmin) {
-          navigate('/admin');
-        } else {
-          navigate('/');
-        }
+      if (resultado.exito) {
+        redirigirSegunRol(resultado.usuario);
       } else {
-        setError(data.error || 'Correo o contraseña incorrectos.');
+        setError(resultado.mensaje || 'Correo o contraseña incorrectos.');
       }
     } catch (err) {
       console.error('Error al iniciar sesión:', err);
-      setError('No se pudo conectar con el servidor.');
+      setError('No se pudo conectar con el servidor Spring Boot.');
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setError('');
+    setCargando(true);
+
+    try {
+      const decoded = jwtDecode(credentialResponse.credential);
+      const emailGoogle = decoded.email.toLowerCase();
+
+      // Validación estricta de dominios permitidos
+      const esGmail = emailGoogle.endsWith('@gmail.com');
+      const esDuocUC = emailGoogle.endsWith('@duocuc.cl');
+      const esProfesorDuoc = emailGoogle.endsWith('@profesor.duoc.cl');
+
+      if (!esGmail && !esDuocUC && !esProfesorDuoc) {
+        setError(`⛔ El dominio del correo (${emailGoogle}) no está permitido. Usa un correo @gmail.com, @duocuc.cl o @profesor.duoc.cl.`);
+        setCargando(false);
+        return;
+      }
+
+      // Buscar usuario en Spring Boot
+      const resCheck = await fetch(`${API_BASE_URL}/usuarios`);
+      let usuarioBD = null;
+
+      if (resCheck.ok) {
+        const usuarios = await resCheck.json();
+        usuarioBD = usuarios.find((u) => u.email && u.email.toLowerCase() === emailGoogle);
+      }
+
+      if (!usuarioBD) {
+        setError('Tu cuenta de Google no se encuentra registrada. Por favor dirígete a la pestaña de registro.');
+        setCargando(false);
+        return;
+      }
+
+      // Autenticar la sesión en el contexto global
+      const resLogin = await iniciarSesion(usuarioBD.email, usuarioBD.password);
+      
+      if (resLogin.exito) {
+        redirigirSegunRol(resLogin.usuario || usuarioBD);
+      } else {
+        setError('No se pudo validar el usuario en la base de datos.');
+      }
+    } catch (err) {
+      console.error('Error autenticando con Google en Login:', err);
+      setError('Ocurrió un error al autenticar la cuenta de Google.');
     } finally {
       setCargando(false);
     }
@@ -72,23 +123,34 @@ export default function Login() {
             Iniciar Sesión
           </h2>
 
+          <div className="mb-4 d-flex flex-column align-items-center">
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={() => setError('La autenticación con Google falló.')}
+              text="signin_with"
+              shape="pill"
+              locale="es"
+            />
+            <div className="separator-text mt-3">
+              <span>O CON TU CORREO</span>
+            </div>
+          </div>
+
           {error && <div className="alert-error">{error}</div>}
 
           <form onSubmit={handleSubmit}>
-
             <div className="form-group mb-3">
               <FloatingLabel controlId="email" label="Correo Electrónico">
                 <Form.Control
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="ejemplo@correo.com"
+                  placeholder="ejemplo@duocuc.cl"
                   required
                 />
               </FloatingLabel>
             </div>
 
-            {/* CONTRASEÑA */}
             <div className="form-group mb-3">
               <FloatingLabel controlId="password" label="Contraseña">
                 <Form.Control

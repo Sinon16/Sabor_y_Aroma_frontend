@@ -30,12 +30,10 @@ import CategoriasAdmin from './pages/admin/CategoriasAdmin';
 import ReportesAdmin from './pages/admin/ReportesAdmin';
 import PerfilAdmin from './pages/admin/PerfilAdmin';
 
-
-// MINI GUARDIÁN PROFESIONAL
+// GUARDIÁN DE RUTAS ADMINISTRADOR
 const RutaAdministrador = ({ children }) => {
-  const { usuario, isAdmin } = useAuth(); // Usa el Contexto global
+  const { usuario, isAdmin } = useAuth();
 
-  // Si no hay usuario o la función isAdmin() da falso, redirecciona al inicio
   if (!usuario || !isAdmin()) {
     return <Navigate to="/" replace />;
   }
@@ -50,12 +48,13 @@ export default function App() {
         <Route path="/" element={<Layout />}>
           <Route index element={<Inicio />} />
           <Route path="categorias" element={<Categorias />} />
+          <Route path="catalogo" element={<Categorias />} /> {/* Alias para navegación de productos */}
           <Route path="ofertas" element={<Ofertas />} />
           <Route path="nosotros" element={<Nosotros />} />
           <Route path="blog" element={<Blogs />} />
           <Route path="contacto" element={<Contacto />} />
           <Route path="carrito" element={<Carrito />} />
-          <Route path="comprar" element={<Comprar />} /> {/* <-- RUTA AGREGADA AQUÍ */}
+          <Route path="comprar" element={<Comprar />} />
           <Route path="login" element={<Login />} />
           <Route path="registro" element={<Registro />} />
         </Route>

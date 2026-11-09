@@ -2,6 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import FloatingLabel from 'react-bootstrap/FloatingLabel';
 import Form from 'react-bootstrap/Form';
+import { GoogleLogin } from '@react-oauth/google';
+import { jwtDecode } from 'jwt-decode';
+import { useAuth } from '../../context/AuthContext';
+
+const API_BASE_URL = 'http://localhost:8080/api';
 
 const estadoInicial = {
   nombre: '',
@@ -16,29 +21,30 @@ const estadoInicial = {
 
 export default function Registro() {
   const navigate = useNavigate();
+  const { iniciarSesion } = useAuth();
 
   const [formData, setFormData] = useState(estadoInicial);
   const [errors, setErrors] = useState({});
   const [mensajeToast, setMensajeToast] = useState('');
   const [errorServidor, setErrorServidor] = useState('');
+  const [obteniendoGeo, setObteniendoGeo] = useState(false);
 
-  // Estados para regiones y comunas dinámicas desde la BD
   const [listaRegiones, setListaRegiones] = useState([]);
   const [listaComunas, setListaComunas] = useState([]);
   const [cargandoRegiones, setCargandoRegiones] = useState(true);
 
-  // 1. Cargar la lista de regiones desde MySQL al montar el componente
+  // 1. Cargar regiones desde Spring Boot
   useEffect(() => {
     const cargarRegionesBD = async () => {
       try {
         setCargandoRegiones(true);
-        const res = await fetch('http://localhost:5000/api/regiones');
+        const res = await fetch(`${API_BASE_URL}/regiones`);
         if (res.ok) {
           const data = await res.json();
           setListaRegiones(data);
         }
       } catch (err) {
-        console.error('Error al obtener regiones desde la BD:', err);
+        console.error('Error al obtener regiones:', err);
       } finally {
         setCargandoRegiones(false);
       }
@@ -47,7 +53,7 @@ export default function Registro() {
     cargarRegionesBD();
   }, []);
 
-  // 2. Cargar comunas asociadas cada vez que cambie la región seleccionada
+  // 2. Cargar comunas por región seleccionada
   useEffect(() => {
     if (!formData.region) {
       setListaComunas([]);
@@ -56,18 +62,44 @@ export default function Registro() {
 
     const cargarComunasBD = async () => {
       try {
-        const res = await fetch(`http://localhost:5000/api/comunas?region=${encodeURIComponent(formData.region)}`);
+        const res = await fetch(`${API_BASE_URL}/comunas?region=${encodeURIComponent(formData.region)}`);
         if (res.ok) {
           const data = await res.json();
           setListaComunas(data);
         }
       } catch (err) {
-        console.error('Error al obtener comunas desde la BD:', err);
+        console.error('Error al obtener comunas:', err);
       }
     };
 
     cargarComunasBD();
   }, [formData.region]);
+
+  const autodetectarUbicacion = () => {
+    if (!navigator.geolocation) {
+      alert('Tu navegador no soporta la geolocalización.');
+      return;
+    }
+
+    setObteniendoGeo(true);
+    navigator.geolocation.getCurrentPosition(
+      () => {
+        setFormData((prev) => ({
+          ...prev,
+          region: 'Región Metropolitana de Santiago',
+          comuna: 'Santiago'
+        }));
+        setObteniendoGeo(false);
+        setMensajeToast('📍 Ubicación seleccionada automáticamente.');
+        setTimeout(() => setMensajeToast(''), 3000);
+      },
+      (error) => {
+        console.error('Error de geolocalización:', error);
+        setObteniendoGeo(false);
+        alert('No se pudo acceder a tu ubicación. Selecciona tu región manualmente.');
+      }
+    );
+  };
 
   const validarCampo = (name, value, currentFormData = formData) => {
     let errorText = '';
@@ -76,7 +108,6 @@ export default function Registro() {
       case 'nombre': {
         const val = value.trim();
         const regexNombre = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ]{3,}\s+[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]{3,}$/;
-
         if (!val) {
           errorText = 'El nombre completo es obligatorio.';
         } else if (!regexNombre.test(val)) {
@@ -89,27 +120,22 @@ export default function Registro() {
         const emailVal = value.trim().toLowerCase();
         if (!emailVal) {
           errorText = 'El correo electrónico es obligatorio.';
-        } else if (emailVal.length > 100) {
-          errorText = 'El correo no puede tener más de 100 caracteres.';
         } else {
           const esGmail = emailVal.endsWith('@gmail.com');
-          const esDuoc = emailVal.endsWith('@duoc.cl');
+          const esDuocUC = emailVal.endsWith('@duocuc.cl');
           const esProfesorDuoc = emailVal.endsWith('@profesor.duoc.cl');
-          if (!esGmail && !esDuoc && !esProfesorDuoc) {
-            errorText = 'Solo se permiten correos @gmail.com, @duoc.cl o @profesor.duoc.cl';
+          if (!esGmail && !esDuocUC && !esProfesorDuoc) {
+            errorText = 'Dominio no permitido. Solo se aceptan correos @gmail.com, @duocuc.cl o @profesor.duoc.cl';
           }
         }
         break;
       }
 
-      case 'confirmarEmail': {
-        const confEmailVal = value.trim().toLowerCase();
-        const mainEmailVal = currentFormData.email.trim().toLowerCase();
-        if (confEmailVal !== mainEmailVal) {
+      case 'confirmarEmail':
+        if (value.trim().toLowerCase() !== currentFormData.email.trim().toLowerCase()) {
           errorText = 'Los correos electrónicos no coinciden.';
         }
         break;
-      }
 
       case 'password':
         if (!value) {
@@ -137,11 +163,7 @@ export default function Registro() {
         break;
     }
 
-    setErrors((prevErrors) => ({
-      ...prevErrors,
-      [name]: errorText
-    }));
-
+    setErrors((prev) => ({ ...prev, [name]: errorText }));
     return errorText;
   };
 
@@ -158,9 +180,88 @@ export default function Registro() {
     validarCampo(name, value, newFormData);
   };
 
+  // 3. Autenticación / Registro con Google Auth Token
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setErrorServidor('');
+    setMensajeToast('');
+
+    try {
+      const decoded = jwtDecode(credentialResponse.credential);
+      const emailGoogle = decoded.email.toLowerCase();
+      const nombreGoogle = decoded.name;
+
+      // Validación de Dominios Permitidos
+      const esGmail = emailGoogle.endsWith('@gmail.com');
+      const esDuocUC = emailGoogle.endsWith('@duocuc.cl');
+      const esProfesorDuoc = emailGoogle.endsWith('@profesor.duoc.cl');
+
+      if (!esGmail && !esDuocUC && !esProfesorDuoc) {
+        setErrorServidor(`⛔ El correo Google (${emailGoogle}) no está permitido. Solo se aceptan @gmail.com, @duocuc.cl y @profesor.duoc.cl.`);
+        return;
+      }
+
+      // Verificar en Spring Boot si la cuenta ya existe
+      const resCheck = await fetch(`${API_BASE_URL}/usuarios`);
+      let usuarioExiste = false;
+
+      if (resCheck.ok) {
+        const usuariosBD = await resCheck.json();
+        usuarioExiste = usuariosBD.some((u) => u.email && u.email.toLowerCase() === emailGoogle);
+      }
+
+      // SI LA CUENTA YA EXISTE: Muestra alerta roja y se queda en la vista de registro
+      if (usuarioExiste) {
+        setErrorServidor(`⚠️ El correo "${emailGoogle}" ya se encuentra registrado. Por favor, dirígete a "Iniciar sesión".`);
+        return;
+      }
+
+      // SI ES NUEVO: Se crea el usuario en Spring Boot, lo logea automáticamente y redirige al inicio
+      const esAdminRol = esProfesorDuoc;
+      const nuevoUsuario = {
+        nombre: nombreGoogle,
+        email: emailGoogle,
+        password: 'GoogleOAuthUser',
+        telefono: '',
+        region: formData.region || 'Región Metropolitana de Santiago',
+        comuna: formData.comuna || 'Santiago',
+        esadmin: esAdminRol
+      };
+
+      const resCrear = await fetch(`${API_BASE_URL}/usuarios`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(nuevoUsuario)
+      });
+
+      if (resCrear.ok) {
+        const usuarioCreado = await resCrear.json();
+        const rolTexto = esAdminRol ? 'Administrador' : 'Cliente';
+        
+        // Login automático en el contexto
+        await iniciarSesion(usuarioCreado.email, usuarioCreado.password);
+        setMensajeToast(`🎉 ¡Cuenta creada con éxito como ${rolTexto}! Redirigiendo...`);
+
+        setTimeout(() => {
+          if (esAdminRol) {
+            navigate('/admin');
+          } else {
+            navigate('/');
+          }
+        }, 1500);
+      } else {
+        throw new Error('No se pudo completar el registro en la base de datos.');
+      }
+
+    } catch (err) {
+      console.error('Error al procesar la cuenta de Google:', err);
+      setErrorServidor('Ocurrió un problema al validar tu cuenta de Google.');
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorServidor('');
+    setMensajeToast('');
 
     let nuevosErrores = {};
     Object.keys(formData).forEach((campo) => {
@@ -173,7 +274,7 @@ export default function Registro() {
     if (Object.keys(nuevosErrores).length > 0) return;
 
     const emailLimpio = formData.email.trim().toLowerCase();
-    const esAdministradorRol = emailLimpio.endsWith('@profesor.duoc.cl') ? 1 : 0;
+    const esAdministradorRol = emailLimpio.endsWith('@profesor.duoc.cl');
 
     const nuevoUsuario = {
       nombre: formData.nombre.trim(),
@@ -186,30 +287,23 @@ export default function Registro() {
     };
 
     try {
-      const response = await fetch('http://localhost:5000/api/registro', {
+      const response = await fetch(`${API_BASE_URL}/usuarios`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(nuevoUsuario)
       });
 
-      const data = await response.json();
-
       if (response.ok) {
-        const tipoCuenta = esAdministradorRol === 1 ? 'Administrador' : 'Cliente';
-        setMensajeToast(`🎉 ¡Registro exitoso como ${tipoCuenta}! Redirigiendo a Iniciar Sesión...`);
+        const tipoCuenta = esAdministradorRol ? 'Administrador' : 'Cliente';
+        setMensajeToast(`🎉 ¡Registro exitoso como ${tipoCuenta}! Redirigiendo al inicio de sesión...`);
         setFormData(estadoInicial);
-        setErrors({});
-        setTimeout(() => {
-          navigate('/login');
-        }, 2200);
+        setTimeout(() => navigate('/login'), 2200);
       } else {
-        setErrorServidor(data.error || 'Ocurrió un error al registrar.');
+        setErrorServidor('El correo electrónico ya se encuentra registrado. Por favor inicia sesión.');
       }
     } catch (error) {
       console.error('Error de red:', error);
-      setErrorServidor('No se pudo conectar con el servidor backend.');
+      setErrorServidor('No se pudo conectar con el servidor Spring Boot.');
     }
   };
 
@@ -218,8 +312,6 @@ export default function Registro() {
       {mensajeToast && <div className="toast-notificacion toast-exito">{mensajeToast}</div>}
 
       <div className="login-card-split login-card-wide">
-        
-        {/* Columna Izquierda: Imagen Gastronómica */}
         <div className="login-image-side">
           <img 
             src="https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1000&q=80" 
@@ -227,21 +319,29 @@ export default function Registro() {
           />
           <div className="login-image-overlay">
             <h3>¡Únete a Sabor & Aroma!</h3>
-            <p>Crea tu cuenta para realizar pedidos de forma rápida, guardar tu dirección y acceder a promociones exclusivas.</p>
+            <p>Crea tu cuenta para realizar pedidos de forma rápida y acceder a promociones exclusivas.</p>
           </div>
         </div>
 
-        {/* Columna Derecha: Formulario de Registro */}
         <div className="login-form-side login-form-side-padded">
-          <h2 className="form-title-centered">
-            Registro de Usuario
-          </h2>
+          <h2 className="form-title-centered">Registro de Usuario</h2>
+
+          <div className="mb-4 d-flex flex-column align-items-center">
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={() => setErrorServidor('La autenticación con Google falló.')}
+              text="signup_with"
+              shape="pill"
+              locale="es"
+            />
+            <div className="separator-text mt-3">
+              <span>O CON TU CORREO</span>
+            </div>
+          </div>
 
           {errorServidor && <div className="alert-error">{errorServidor}</div>}
 
           <form onSubmit={handleSubmit} noValidate>
-            
-            {/* NOMBRE COMPLETO */}
             <div className="form-group mb-3">
               <FloatingLabel controlId="nombre" label="NOMBRE COMPLETO">
                 <Form.Control
@@ -253,94 +353,65 @@ export default function Registro() {
                   onChange={handleChange}
                 />
               </FloatingLabel>
-              {errors.nombre && (
-                <span className="error-message error-message-block">
-                  {errors.nombre}
-                </span>
-              )}
+              {errors.nombre && <span className="error-message error-message-block">{errors.nombre}</span>}
             </div>
 
-            {/* CORREO */}
             <div className="form-group mb-3">
               <FloatingLabel controlId="email" label="CORREO">
                 <Form.Control
                   type="email"
                   name="email"
-                  maxLength={110}
-                  placeholder="ejemplo@duoc.cl"
+                  placeholder="ejemplo@duocuc.cl"
                   className={`form-input-dark ${errors.email ? 'input-error' : ''}`}
                   value={formData.email}
                   onChange={handleChange}
                 />
               </FloatingLabel>
-              {errors.email && (
-                <span className="error-message error-message-block">
-                  {errors.email}
-                </span>
-              )}
+              {errors.email && <span className="error-message error-message-block">{errors.email}</span>}
             </div>
 
-            {/* CONFIRMAR CORREO */}
             <div className="form-group mb-3">
               <FloatingLabel controlId="confirmarEmail" label="CORREO (Confirmación)">
                 <Form.Control
                   type="email"
                   name="confirmarEmail"
-                  maxLength={110}
-                  placeholder="ejemplo@duoc.cl"
+                  placeholder="ejemplo@duocuc.cl"
                   className={`form-input-dark ${errors.confirmarEmail ? 'input-error' : ''}`}
                   value={formData.confirmarEmail}
                   onChange={handleChange}
                 />
               </FloatingLabel>
-              {errors.confirmarEmail && (
-                <span className="error-message error-message-block">
-                  {errors.confirmarEmail}
-                </span>
-              )}
+              {errors.confirmarEmail && <span className="error-message error-message-block">{errors.confirmarEmail}</span>}
             </div>
 
-            {/* CONTRASEÑA */}
             <div className="form-group mb-3">
               <FloatingLabel controlId="password" label="CONTRASEÑA">
                 <Form.Control
                   type="password"
                   name="password"
-                  maxLength={10}
                   placeholder="****"
                   className={`form-input-dark ${errors.password ? 'input-error' : ''}`}
                   value={formData.password}
                   onChange={handleChange}
                 />
               </FloatingLabel>
-              {errors.password && (
-                <span className="error-message error-message-block">
-                  {errors.password}
-                </span>
-              )}
+              {errors.password && <span className="error-message error-message-block">{errors.password}</span>}
             </div>
 
-            {/* CONFIRMAR CONTRASEÑA */}
             <div className="form-group mb-3">
               <FloatingLabel controlId="confirmarPassword" label="CONFIRMAR CONTRASEÑA">
                 <Form.Control
                   type="password"
                   name="confirmarPassword"
-                  maxLength={10}
                   placeholder="****"
                   className={`form-input-dark ${errors.confirmarPassword ? 'input-error' : ''}`}
                   value={formData.confirmarPassword}
                   onChange={handleChange}
                 />
               </FloatingLabel>
-              {errors.confirmarPassword && (
-                <span className="error-message error-message-block">
-                  {errors.confirmarPassword}
-                </span>
-              )}
+              {errors.confirmarPassword && <span className="error-message error-message-block">{errors.confirmarPassword}</span>}
             </div>
 
-            {/* TELÉFONO */}
             <div className="form-group mb-3">
               <FloatingLabel controlId="telefono" label="TELÉFONO (opcional)">
                 <Form.Control
@@ -352,6 +423,17 @@ export default function Registro() {
                   onChange={handleChange}
                 />
               </FloatingLabel>
+            </div>
+
+            <div className="mb-2 text-end">
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-secondary"
+                onClick={autodetectarUbicacion}
+                disabled={obteniendoGeo}
+              >
+                {obteniendoGeo ? 'Detectando...' : '📍 Autodetectar mi ubicación'}
+              </button>
             </div>
 
             <div className="form-row-flex mb-3">
@@ -368,20 +450,16 @@ export default function Registro() {
                       {cargandoRegiones ? 'Cargando regiones...' : '-- Seleccione la región --'}
                     </option>
                     {listaRegiones.map((reg) => {
-                      const nombreReg = typeof reg === 'string' ? reg : reg.nombre_region || reg.nombre;
+                      const nombreReg = typeof reg === 'string' ? reg : reg.nombreRegion || reg.nombre_region;
                       return (
-                        <option key={reg.id_region || nombreReg} value={nombreReg} className="select-option-dark">
+                        <option key={reg.idRegion || reg.id_region || nombreReg} value={nombreReg}>
                           {nombreReg}
                         </option>
                       );
                     })}
                   </Form.Select>
                 </FloatingLabel>
-                {errors.region && (
-                  <span className="error-message error-message-block">
-                    {errors.region}
-                  </span>
-                )}
+                {errors.region && <span className="error-message error-message-block">{errors.region}</span>}
               </div>
 
               <div className="form-group form-group-flex">
@@ -395,20 +473,16 @@ export default function Registro() {
                   >
                     <option value="" className="select-option-dark">-- Seleccione la comuna --</option>
                     {listaComunas.map((com) => {
-                      const nombreCom = typeof com === 'string' ? com : com.nombre_comuna || com.nombre;
+                      const nombreCom = typeof com === 'string' ? com : com.nombreComuna || com.nombre_comuna;
                       return (
-                        <option key={com.id_comuna || nombreCom} value={nombreCom} className="select-option-dark">
+                        <option key={com.idComuna || com.id_comuna || nombreCom} value={nombreCom}>
                           {nombreCom}
                         </option>
                       );
                     })}
                   </Form.Select>
                 </FloatingLabel>
-                {errors.comuna && (
-                  <span className="error-message error-message-block">
-                    {errors.comuna}
-                  </span>
-                )}
+                {errors.comuna && <span className="error-message error-message-block">{errors.comuna}</span>}
               </div>
             </div>
 
@@ -421,7 +495,6 @@ export default function Registro() {
             ¿Ya tienes una cuenta? <Link to="/login" className="link-bold-primary">Inicia sesión aquí</Link>
           </p>
         </div>
-
       </div>
     </div>
   );
