@@ -3,6 +3,8 @@ import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 
+const API_BASE_URL = 'http://localhost:8080/api';
+
 export default function Comprar() {
   const { itemsCarrito, obtenerPrecioTotal, limpiarCarrito } = useCart();
   const { usuario } = useAuth();
@@ -11,7 +13,7 @@ export default function Comprar() {
   const [estadoPago, setEstadoPago] = useState(null);
   const [procesando, setProcesando] = useState(false);
   const [numOrdenGenerada, setNumOrdenGenerada] = useState('');
-  
+
   const [resumenPedido, setResumenPedido] = useState([]);
   const [totalPedido, setTotalPedido] = useState(0);
 
@@ -29,6 +31,7 @@ export default function Comprar() {
   const [listaRegiones, setListaRegiones] = useState([]);
   const [listaComunas, setListaComunas] = useState([]);
 
+  // Guardar copia del carrito para la vista de resumen tras la compra
   useEffect(() => {
     if (itemsCarrito.length > 0 && estadoPago === null) {
       setResumenPedido(itemsCarrito);
@@ -36,21 +39,23 @@ export default function Comprar() {
     }
   }, [itemsCarrito, obtenerPrecioTotal, estadoPago]);
 
+  // Cargar lista de regiones desde Spring Boot
   useEffect(() => {
     const cargarRegiones = async () => {
       try {
-        const res = await fetch('http://localhost:5000/api/regiones');
+        const res = await fetch(`${API_BASE_URL}/regiones`);
         if (res.ok) {
           const data = await res.json();
           setListaRegiones(data);
         }
       } catch (err) {
-        console.error('Error al cargar regiones:', err);
+        console.error('Error al cargar regiones desde Spring Boot:', err);
       }
     };
     cargarRegiones();
   }, []);
 
+  // Cargar comunas filtradas por región desde Spring Boot
   useEffect(() => {
     if (!formData.region) {
       setListaComunas([]);
@@ -58,13 +63,13 @@ export default function Comprar() {
     }
     const cargarComunas = async () => {
       try {
-        const res = await fetch(`http://localhost:5000/api/comunas?region=${encodeURIComponent(formData.region)}`);
+        const res = await fetch(`${API_BASE_URL}/comunas?region=${encodeURIComponent(formData.region)}`);
         if (res.ok) {
           const data = await res.json();
           setListaComunas(data);
         }
       } catch (err) {
-        console.error('Error al cargar comunas:', err);
+        console.error('Error al cargar comunas desde Spring Boot:', err);
       }
     };
     cargarComunas();
@@ -83,7 +88,7 @@ export default function Comprar() {
   };
 
   const handlePagoExitoso = async () => {
-    const idUsuario = usuario?.id || usuario?.id_usuario || usuario?.usuario_id;
+    const idUsuario = usuario?.id || usuario?.idUsuario || usuario?.id_usuario;
     if (!idUsuario) {
       alert('Debes estar autenticado para finalizar la compra.');
       navigate('/login');
@@ -93,33 +98,49 @@ export default function Comprar() {
     try {
       setProcesando(true);
 
-      const itemsFormateados = resumenPedido.map((item) => ({
-        producto_id: item.id || item.producto_id,
+      // Estructura adaptada a la entidad DetalleOrden / Producto de JPA
+      const detallesFormateados = resumenPedido.map((item) => ({
         cantidad: item.cantidad,
-        precio_unitario: item.precio
+        precioUnitario: item.precio,
+        producto: {
+          id: Number(item.id || item.producto_id || item.producto?.id)
+        }
       }));
 
-      const res = await fetch('http://localhost:5000/api/ordenes', {
+      // Payload JSON completo coincidente con la entidad Orden de Spring Boot
+      const ordenPayload = {
+        total: totalPedido,
+        usuario: {
+          id: Number(idUsuario)
+        },
+        estadoOrden: {
+          idEstado: 1 // Estado inicial: Pendiente
+        },
+        detalles: detallesFormateados,
+        // DTOs planos para compatibilidad adicional
+        usuarioId: Number(idUsuario),
+        items: detallesFormateados
+      };
+
+      const res = await fetch(`${API_BASE_URL}/ordenes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          usuario_id: idUsuario,
-          total: totalPedido,
-          items: itemsFormateados
-        })
+        body: JSON.stringify(ordenPayload)
       });
 
-      const data = await res.json();
-
       if (res.ok) {
-        setNumOrdenGenerada(data.orden_id || Math.floor(100000 + Math.random() * 900000));
+        const data = await res.json();
+        const idGenerado = data.id || data.idOrden || Math.floor(100000 + Math.random() * 900000);
+        setNumOrdenGenerada(idGenerado);
         await limpiarCarrito();
         setEstadoPago(1);
       } else {
-        alert(data.error || 'No se pudo completar la transacción.');
+        const errText = await res.text();
+        console.error('Error al guardar la orden en Spring Boot:', errText);
+        alert('Hubo un problema al registrar la orden en la base de datos.');
       }
     } catch (error) {
-      console.error('Error procesando pago exitoso:', error);
+      console.error('Error procesando pago exitoso en Spring Boot:', error);
       alert('No se pudo conectar con el servidor.');
     } finally {
       setProcesando(false);
@@ -140,7 +161,7 @@ export default function Comprar() {
             <h2>✅ Se ha realizado la compra. nro #{numOrdenGenerada}</h2>
             <span className="order-code-badge">Código orden: ORDER{numOrdenGenerada}</span>
           </div>
-          <p className="checkout-subtitle">Completa la siguiente información</p>
+          <p className="checkout-subtitle">Detalle de la transacción realizada</p>
 
           <div className="checkout-section">
             <div className="form-row-responsive form-row-3">
@@ -243,7 +264,7 @@ export default function Comprar() {
           <div className="checkout-header-error">
             <h2>❌ No se pudo realizar el pago. nro #{numOrdenGenerada}</h2>
           </div>
-          <p className="checkout-subtitle">Detalle de comprar</p>
+          <p className="checkout-subtitle">Detalle de compra</p>
 
           <div className="text-center-padding">
             <button type="button" className="btn-reintentar-pago" onClick={() => setEstadoPago(null)}>
@@ -357,7 +378,7 @@ export default function Comprar() {
               {resumenPedido.length === 0 ? (
                 <tr>
                   <td colSpan="5" style={{ textAlign: 'center', padding: '1rem' }}>
-                    No hay productos en el pedido. <Link to="/categorias">Ir al Menú</Link>
+                    No hay productos en el pedido. <Link to="/catalogo">Ir al Menú</Link>
                   </td>
                 </tr>
               ) : (
@@ -424,7 +445,7 @@ export default function Comprar() {
 
         <div className="checkout-section">
           <h3>Dirección de entrega de los productos</h3>
-          <p className="checkout-subtitle">Ingrese direccion de forma detallada</p>
+          <p className="checkout-subtitle">Ingrese dirección de forma detallada</p>
 
           <div className="form-row-responsive form-row-2">
             <div className="form-group">
@@ -466,7 +487,7 @@ export default function Comprar() {
               >
                 <option value="">-- Seleccione la región --</option>
                 {listaRegiones.map((reg) => {
-                  const nom = typeof reg === 'string' ? reg : reg.nombre_region;
+                  const nom = typeof reg === 'string' ? reg : reg.nombreRegion || reg.nombre_region || reg.nombre;
                   return <option key={nom} value={nom}>{nom}</option>;
                 })}
               </select>
@@ -484,7 +505,7 @@ export default function Comprar() {
               >
                 <option value="">-- Seleccione la comuna --</option>
                 {listaComunas.map((com) => {
-                  const nom = typeof com === 'string' ? com : com.nombre_comuna;
+                  const nom = typeof com === 'string' ? com : com.nombreComuna || com.nombre_comuna || com.nombre;
                   return <option key={nom} value={nom}>{nom}</option>;
                 })}
               </select>
