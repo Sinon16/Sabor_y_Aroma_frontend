@@ -1,164 +1,160 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
+
+const API_BASE_URL = 'http://localhost:8080/api';
 
 export default function ProductosAdmin() {
-  // Estado para la lista de productos y categorías desde la BD
   const [productos, setProductos] = useState([]);
-  const [categoriasLista, setCategoriasLista] = useState([]);
-  
-  // Estado para controlar los campos del formulario de creación/edición
+  const [categorias, setCategorias] = useState([]);
   const [formData, setFormData] = useState({
-    codigo: '', nombre: '', id_categoria: '', precio: '', stock: '', descripcion: '', imagen: ''
+    nombre: '', precio: '', stock: '', categoriaId: '', imagen: '', descripcion: '', enOferta: '0', precioOferta: ''
   });
   
-  const [editandoId, setEditandoId] = useState(null); // Almacena el ID si se está editando
-  const [filtroActivo, setFiltroActivo] = useState('todos'); // Controla el filtro de stock en la tabla
-
-  // Referencia para limpiar visualmente el input de archivos
-  const fileInputRef = useRef(null);
-
-  // Estados para notificaciones Toast y confirmación de borrado (Modal)
+  const [editandoId, setEditandoId] = useState(null);
   const [toast, setToast] = useState({ mostrar: false, mensaje: '', tipo: 'success' });
-  const [productoAEliminar, setProductoAEliminar] = useState(null);
+  
+  const location = useLocation();
 
-  // Función para mostrar mensajes flotantes temporales
   const mostrarMensaje = (mensaje, tipo = 'success') => {
     setToast({ mostrar: true, mensaje, tipo });
     setTimeout(() => setToast({ mostrar: false, mensaje: '', tipo: 'success' }), 3000);
   };
 
-  // Función GET: Carga productos y categorías del backend
-  const obtenerDatos = async () => {
+  const cargarDatos = async () => {
     try {
-      const resProd = await fetch('http://localhost:5000/api/admin/productos', { cache: 'no-store' });
-      const resCat = await fetch('http://localhost:5000/api/categorias', { cache: 'no-store' });
-      
+      const [resProd, resCat] = await Promise.all([
+        fetch(`${API_BASE_URL}/productos`, { cache: 'no-store' }),
+        fetch(`${API_BASE_URL}/categorias`, { cache: 'no-store' })
+      ]);
+
       if (resProd.ok) setProductos(await resProd.json());
-      if (resCat.ok) setCategoriasLista(await resCat.json());
+      if (resCat.ok) setCategorias(await resCat.json());
     } catch (error) {
-      mostrarMensaje('Error de conexión al cargar la base de datos.', 'danger');
+      mostrarMensaje('Error de conexión con el servidor.', 'danger');
     }
   };
 
-  // Hook que ejecuta obtenerDatos al cargar la página
   useEffect(() => {
-    obtenerDatos();
-  }, []);
+    cargarDatos();
+  }, [location.key]);
 
-  // Actualiza el formData dinámicamente al escribir en los inputs
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    if (name === 'enOferta' && value === '0') {
+      setFormData({ ...formData, enOferta: '0', precioOferta: '' });
+    } else {
+      setFormData({ ...formData, [name]: value });
+    }
   };
 
-  // Función POST / PUT: Envía el formulario para crear o actualizar un producto
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData({ ...formData, imagen: reader.result });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       const url = editandoId 
-        ? `http://localhost:5000/api/productos/${editandoId}` 
-        : 'http://localhost:5000/api/productos';
+        ? `${API_BASE_URL}/productos/${editandoId}` 
+        : `${API_BASE_URL}/productos`;
+      
       const method = editandoId ? 'PUT' : 'POST';
+
+      const categoriaSeleccionada = categorias.find(
+        c => String(c.idCategoria) === String(formData.categoriaId)
+      );
+
+      const datosAEnviar = {
+        nombre: formData.nombre,
+        descripcion: formData.descripcion,
+        precio: parseInt(formData.precio, 10) || 0,
+        stock: parseInt(formData.stock, 10) || 0,
+        imagen: formData.imagen,
+        categoria: categoriaSeleccionada ? { idCategoria: categoriaSeleccionada.idCategoria } : null,
+        oferta: formData.enOferta === '1' ? { idOferta: 1 } : null
+      };
 
       const response = await fetch(url, {
         method: method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(datosAEnviar)
       });
 
       if (response.ok) {
-        obtenerDatos();
-        setFormData({ codigo: '', nombre: '', id_categoria: '', precio: '', stock: '', descripcion: '', imagen: '' }); 
-        setEditandoId(null);
-        if (fileInputRef.current) fileInputRef.current.value = "";
-        mostrarMensaje(`✅ ¡"${formData.nombre}" guardado con éxito!`);
+        cargarDatos();
+        limpiarFormulario();
+        mostrarMensaje(editandoId ? '✅ Producto actualizado con éxito' : '✅ Producto creado con éxito');
       } else {
-        const data = await response.json();
-        mostrarMensaje('❌ No se pudo guardar: ' + (data.error || 'Verifica los datos'), 'danger');
+        mostrarMensaje('❌ Error al guardar el producto.', 'danger');
       }
     } catch (error) {
-      mostrarMensaje('⚠️ Error de conexión. Asegúrate de que el backend esté encendido.', 'danger');
+      mostrarMensaje('⚠️ Error de conexión con el backend.', 'danger');
     }
   };
 
-  // Carga los datos del producto seleccionado en el formulario para editarlos
-  const handleEdit = (producto) => {
+  const handleEdit = (prod) => {
     setFormData({
-      codigo: producto.codigo,
-      nombre: producto.nombre,
-      id_categoria: producto.id_categoria,
-      precio: producto.precio,
-      stock: producto.stock,
-      descripcion: producto.descripcion,
-      imagen: producto.imagen || '' 
+      nombre: prod.nombre || '',
+      precio: prod.precio || '',
+      stock: prod.stock !== undefined ? prod.stock : 0,
+      categoriaId: prod.categoria?.idCategoria || '',
+      imagen: prod.imagen || '',
+      descripcion: prod.descripcion || '',
+      enOferta: prod.oferta ? '1' : '0',
+      precioOferta: prod.oferta?.porcentajeDescuento || ''
     });
-    setEditandoId(producto.id);
-    if (fileInputRef.current) fileInputRef.current.value = ""; 
+    setEditandoId(prod.id);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Función DELETE: Envía la petición para eliminar el producto confirmado
-  const confirmarEliminacion = async () => {
-    if (!productoAEliminar) return;
-    
-    try {
-      const response = await fetch(`http://localhost:5000/api/productos/${productoAEliminar.id}`, {
-        method: 'DELETE'
-      });
-      if (response.ok) {
-        obtenerDatos();
-        mostrarMensaje(`🗑️ "${productoAEliminar.nombre}" eliminado correctamente.`, 'warning');
-      } else {
-        mostrarMensaje('❌ No se pudo eliminar. Verifica que no existan órdenes atadas.', 'danger');
+  const limpiarFormulario = () => {
+    setFormData({ nombre: '', precio: '', stock: '', categoriaId: '', imagen: '', descripcion: '', enOferta: '0', precioOferta: '' });
+    setEditandoId(null);
+    const fileInput = document.getElementById('fileInput');
+    if (fileInput) fileInput.value = '';
+  };
+
+  const handleDelete = async (id, nombre) => {
+    if (window.confirm(`¿Seguro que deseas eliminar "${nombre}"?`)) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/productos/${id}`, { method: 'DELETE' });
+        if (response.ok) {
+          cargarDatos();
+          mostrarMensaje(`🗑️ "${nombre}" eliminado.`, 'warning');
+        } else {
+          mostrarMensaje('❌ Error al eliminar.', 'danger');
+        }
+      } catch (error) {
+        mostrarMensaje('Error de conexión.', 'danger');
       }
-    } catch (error) {
-      mostrarMensaje('Error de red al eliminar.', 'danger');
     }
-    
-    setProductoAEliminar(null);
   };
-
-  // Filtra los productos según el botón seleccionado (todos o stock crítico <= 10)
-  const productosFiltrados = filtroActivo === 'criticos' 
-    ? productos.filter(producto => producto.stock <= 10)
-    : productos;
 
   return (
     <div className="container-fluid py-4 position-relative">
-      
-      {/* Toast de notificaciones visuales */}
       {toast.mostrar && (
         <div className={`alert alert-${toast.tipo} position-fixed top-0 end-0 m-3 shadow-lg z-3`} style={{ zIndex: 1050 }}>
           {toast.mensaje}
         </div>
       )}
 
-      {/* Modal de confirmación para eliminar */}
-      {productoAEliminar && (
-        <>
-          <div className="modal-backdrop fade show" style={{ zIndex: 1040 }}></div>
-          <div className="modal fade show d-block" tabIndex="-1" style={{ zIndex: 1050 }}>
-            <div className="modal-dialog modal-dialog-centered">
-              <div className="modal-content">
-                <div className="modal-header bg-danger text-white">
-                  <h5 className="modal-title">Confirmar Eliminación</h5>
-                  <button type="button" className="btn-close btn-close-white" onClick={() => setProductoAEliminar(null)}></button>
-                </div>
-                <div className="modal-body">
-                  <p>¿Estás seguro de que deseas eliminar el producto <strong>{productoAEliminar.nombre}</strong>?</p>
-                  <p className="text-muted small mb-0">Esta acción no se puede deshacer.</p>
-                </div>
-                <div className="modal-footer">
-                  <button type="button" className="btn btn-secondary" onClick={() => setProductoAEliminar(null)}>Cancelar</button>
-                  <button type="button" className="btn btn-danger" onClick={confirmarEliminacion}>Sí, Eliminar</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
-      <h2 className="mb-4">Gestión de Productos e Inventario</h2>
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <h2 className="fw-bold m-0">Gestión de Inventario</h2>
+        {editandoId && (
+          <button type="button" className="btn btn-secondary btn-sm" onClick={limpiarFormulario}>
+            Cancelar Edición
+          </button>
+        )}
+      </div>
 
       <div className="row">
-        {/* Columna del Formulario */}
         <div className="col-md-4 mb-4">
           <div className="card shadow-sm">
             <div className="card-header bg-dark text-white">
@@ -167,150 +163,114 @@ export default function ProductosAdmin() {
             <div className="card-body">
               <form onSubmit={handleSubmit}>
                 <div className="mb-3">
-                  <label className="form-label">Código</label>
-                  <input type="text" className="form-control" name="codigo" value={formData.codigo} onChange={handleChange} required />
-                </div>
-                <div className="mb-3">
-                  <label className="form-label">Nombre</label>
+                  <label className="form-label">Nombre del Producto</label>
                   <input type="text" className="form-control" name="nombre" value={formData.nombre} onChange={handleChange} required />
                 </div>
-                <div className="mb-3">
-                  <label className="form-label">Categoría</label>
-                  <select className="form-select" name="id_categoria" value={formData.id_categoria} onChange={handleChange} required>
-                    <option value="">Seleccione una categoría...</option>
-                    {categoriasLista.map(cat => (
-                      <option key={cat.id_categoria} value={cat.id_categoria}>
-                        {cat.nombre_categoria}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                
                 <div className="row mb-3">
                   <div className="col">
-                    <label className="form-label">Precio ($)</label>
+                    <label className="form-label">Precio Normal ($)</label>
                     <input type="number" className="form-control" name="precio" value={formData.precio} onChange={handleChange} required />
                   </div>
                   <div className="col">
-                    <label className="form-label">Existencias</label>
+                    <label className="form-label">Stock (Cant.)</label>
                     <input type="number" className="form-control" name="stock" value={formData.stock} onChange={handleChange} required />
                   </div>
                 </div>
-                <div className="mb-3">
-                  <label className="form-label">Descripción</label>
-                  <textarea className="form-control" name="descripcion" value={formData.descripcion} onChange={handleChange} rows="2"></textarea>
-                </div>
-                
-                {/* Selector de archivo para la imagen */}
-                <div className="mb-3">
-                  <label className="form-label">Imagen del Producto</label>
-                  
-                  {editandoId && formData.imagen && (
-                    <div className="mb-2 text-primary small">
-                      Imagen actual: <strong>{formData.imagen}</strong>
-                    </div>
-                  )}
-                  
-                  <input
-                    type="file"
-                    className="form-control"
-                    accept="image/*"
-                    ref={fileInputRef}
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files[0]) {
-                        const nombreArchivo = e.target.files[0].name;
-                        setFormData({ 
-                          ...formData, 
-                          imagen: `img/${nombreArchivo}` 
-                        });
-                      }
-                    }}
-                  />
-                  <small className="text-muted">
-                    {editandoId 
-                      ? "Selecciona un nuevo archivo solo si deseas cambiar la foto actual." 
-                      : "Seleccione la imagen del producto para el catálogo."}
-                  </small>
+
+                <div className="row mb-3 p-2 bg-light rounded border mx-0">
+                  <div className="col-12">
+                    <label className="form-label fw-bold text-primary">¿Está en Oferta?</label>
+                    <select className="form-select" name="enOferta" value={formData.enOferta} onChange={handleChange}>
+                      <option value="0">No</option>
+                      <option value="1">Sí (Aplicar Promo)</option>
+                    </select>
+                  </div>
                 </div>
 
-                <div className="d-grid gap-2">
+                <div className="mb-3">
+                  <label className="form-label">Categoría</label>
+                  <select className="form-select" name="categoriaId" value={formData.categoriaId} onChange={handleChange} required>
+                    <option value="">Seleccione una categoría...</option>
+                    {categorias.map(cat => (
+                      <option key={cat.idCategoria} value={cat.idCategoria}>{cat.nombreCategoria}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="mb-3">
+                  <label className="form-label">Imagen del Producto</label>
+                  <input type="file" id="fileInput" className="form-control" accept="image/*" onChange={handleImageChange} />
+                  {formData.imagen && (
+                    <div className="mt-2 text-center">
+                      <img src={formData.imagen} alt="Preview" style={{ height: '80px', objectFit: 'contain' }} className="img-thumbnail" />
+                    </div>
+                  )}
+                </div>
+
+                <div className="mb-4">
+                  <label className="form-label">Descripción</label>
+                  <textarea className="form-control" name="descripcion" rows="2" value={formData.descripcion} onChange={handleChange}></textarea>
+                </div>
+
+                <div className="d-grid">
                   <button type="submit" className={`btn ${editandoId ? 'btn-warning' : 'btn-success'}`}>
                     {editandoId ? 'Actualizar Producto' : 'Guardar Producto'}
                   </button>
-                  {editandoId && (
-                    <button type="button" className="btn btn-secondary" onClick={() => { 
-                      setEditandoId(null); 
-                      setFormData({ codigo: '', nombre: '', id_categoria: '', precio: '', stock: '', descripcion: '', imagen: '' }); 
-                      if (fileInputRef.current) fileInputRef.current.value = "";
-                    }}>
-                      Cancelar Edición
-                    </button>
-                  )}
                 </div>
               </form>
             </div>
           </div>
         </div>
 
-        {/* Columna de la Tabla de Inventario */}
         <div className="col-md-8">
           <div className="card shadow-sm">
-            <div className="card-header bg-white d-flex justify-content-between align-items-center">
-              <h5 className="mb-0">Lista de Inventario</h5>
-              <div className="btn-group" role="group">
-                <button type="button" className={`btn ${filtroActivo === 'todos' ? 'btn-primary' : 'btn-outline-primary'}`} onClick={() => setFiltroActivo('todos')}>
-                  Todos los Productos
-                </button>
-                <button type="button" className={`btn ${filtroActivo === 'criticos' ? 'btn-danger' : 'btn-outline-danger'}`} onClick={() => setFiltroActivo('criticos')}>
-                  Stock Crítico (≤ 10)
-                </button>
-              </div>
-            </div>
-            
-            <div className="card-body">
+            <div className="card-body p-0 p-md-3">
               <div className="table-responsive">
-                <table className="table table-hover table-bordered align-middle">
+                <table className="table table-hover align-middle mb-0">
                   <thead className="table-light">
                     <tr>
-                      <th>Código</th>
+                      <th>Img</th>
                       <th>Nombre</th>
                       <th>Categoría</th>
                       <th>Precio</th>
-                      <th>Existencias</th>
+                      <th>Stock</th>
+                      <th>Oferta</th>
                       <th>Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {productosFiltrados.length === 0 ? (
-                      <tr>
-                        <td colSpan="6" className="text-center text-muted py-4">
-                          {filtroActivo === 'criticos' ? 'No hay productos con stock crítico.' : 'No hay productos registrados.'}
-                        </td>
-                      </tr>
+                    {productos.length === 0 ? (
+                      <tr><td colSpan="7" className="text-center py-4">No hay productos en el inventario.</td></tr>
                     ) : (
-                      productosFiltrados.map((producto) => {
-                        const catObj = categoriasLista.find(c => c.id_categoria === producto.id_categoria);
-                        const nombreCat = catObj ? catObj.nombre_categoria : producto.id_categoria;
-
-                        return (
-                          <tr key={producto.id}>
-                            <td><span className="badge bg-secondary">{producto.codigo}</span></td>
-                            <td className="fw-bold">{producto.nombre}</td>
-                            <td>{nombreCat}</td>
-                            <td>${producto.precio}</td>
-                            <td>
-                              <span className={`badge ${producto.stock <= 10 ? 'bg-danger' : 'bg-success'}`}>
-                                {producto.stock}
-                              </span>
-                            </td>
-                            <td>
-                              <div className="btn-group btn-group-sm">
-                                <button onClick={() => handleEdit(producto)} className="btn btn-outline-primary">Editar</button>
-                                <button onClick={() => setProductoAEliminar(producto)} className="btn btn-outline-danger">Eliminar</button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
+                      productos.map(prod => (
+                        <tr key={prod.id}>
+                          <td>
+                            <img src={prod.imagen || 'https://via.placeholder.com/40'} alt={prod.nombre} style={{ width: '40px', height: '40px', objectFit: 'cover' }} className="rounded" />
+                          </td>
+                          <td className="fw-bold">{prod.nombre}</td>
+                          <td><span className="badge bg-secondary">{prod.categoria?.nombreCategoria || 'Sin Categoría'}</span></td>
+                          <td>${Number(prod.precio).toLocaleString('es-CL')}</td>
+                          <td>
+                            <span className={`badge ${prod.stock > 5 ? 'bg-success' : prod.stock > 0 ? 'bg-warning text-dark' : 'bg-danger'}`}>
+                              {prod.stock !== undefined ? prod.stock : 0} u.
+                            </span>
+                          </td>
+                          <td>
+                            {prod.oferta ? (
+                              <span className="badge bg-danger">🔥 {prod.oferta.porcentajeDescuento}% OFF</span>
+                            ) : (
+                              <span className="text-muted small">Normal</span>
+                            )}
+                          </td>
+                          <td>
+                            <div className="btn-group btn-group-sm">
+                              <button onClick={() => handleEdit(prod)} className="btn btn-outline-primary">Editar</button>
+                              <button onClick={() => handleDelete(prod.id, prod.nombre)} className="btn btn-outline-danger">Eliminar</button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
                     )}
                   </tbody>
                 </table>

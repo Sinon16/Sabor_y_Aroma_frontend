@@ -8,29 +8,30 @@ const datosUbicacion = {
   "Biobío": ["Concepción", "Talcahuano", "Los Ángeles"]
 };
 
+// Se define la ruta base hacia Spring Boot
+const API_BASE_URL = 'http://localhost:8080/api';
+
 export default function UsuariosAdmin() {
-  // Estados para la lista de usuarios, datos del formulario y selectores
   const [usuarios, setUsuarios] = useState([]);
   const [formData, setFormData] = useState({ 
     nombre: '', email: '', password: '', region: '', comuna: '', esadmin: '0' 
   });
   
   const [comunasDisponibles, setComunasDisponibles] = useState([]);
-  const [editandoId, setEditandoId] = useState(null); // Almacena el ID si se está editando
-  const [toast, setToast] = useState({ mostrar: false, mensaje: '', tipo: 'success' }); // Control de alertas
+  const [editandoId, setEditandoId] = useState(null);
+  const [toast, setToast] = useState({ mostrar: false, mensaje: '', tipo: 'success' });
   
   const location = useLocation();
 
-  // Función para mostrar mensajes flotantes temporales
   const mostrarMensaje = (mensaje, tipo = 'success') => {
     setToast({ mostrar: true, mensaje, tipo });
     setTimeout(() => setToast({ mostrar: false, mensaje: '', tipo: 'success' }), 3000);
   };
 
-  // Función GET: Obtiene la lista de usuarios desde el backend
+  // Función GET: Obtiene la lista de usuarios desde Spring Boot
   const obtenerUsuarios = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/usuarios', { cache: 'no-store' });
+      const response = await fetch(`${API_BASE_URL}/usuarios`, { cache: 'no-store' });
       if (response.ok) {
         setUsuarios(await response.json());
       }
@@ -39,12 +40,10 @@ export default function UsuariosAdmin() {
     }
   };
 
-  // Hook que ejecuta obtenerUsuarios al cargar o cambiar de ruta
   useEffect(() => {
     obtenerUsuarios();
   }, [location.key]);
 
-  // Actualiza las comunas disponibles de forma dinámica al cambiar la región seleccionada
   const handleRegionChange = (e) => {
     const regionSeleccionada = e.target.value;
     setFormData({ ...formData, region: regionSeleccionada, comuna: '' }); 
@@ -56,25 +55,35 @@ export default function UsuariosAdmin() {
     }
   };
 
-  // Actualiza el formData dinámicamente al escribir en los inputs
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // Función POST / PUT: Envía el formulario para crear o actualizar un usuario
+  // Función POST / PUT hacia Spring Boot
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       const url = editandoId 
-        ? `http://localhost:5000/api/usuarios/${editandoId}` 
-        : 'http://localhost:5000/api/usuarios/registro'; 
+        ? `${API_BASE_URL}/usuarios/${editandoId}` 
+        : `${API_BASE_URL}/usuarios`; 
       
       const method = editandoId ? 'PUT' : 'POST';
+
+      // Preparamos el objeto para enviar. Si estamos editando, incluimos el ID.
+      // Convertimos esadmin a booleano porque Spring Boot (JPA) lo espera así.
+      const payload = {
+        ...formData,
+        esadmin: formData.esadmin === '1'
+      };
+
+      if (editandoId) {
+        payload.id = editandoId;
+      }
 
       const response = await fetch(url, {
         method: method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
 
       if (response.ok) {
@@ -84,20 +93,18 @@ export default function UsuariosAdmin() {
         setEditandoId(null);
         mostrarMensaje(editandoId ? '✅ Usuario actualizado' : '✅ Usuario creado');
       } else {
-        const data = await response.json();
-        mostrarMensaje('❌ Error: ' + (data.error || 'No se pudo guardar'), 'danger');
+        mostrarMensaje('❌ Error al guardar el usuario en la BD', 'danger');
       }
     } catch (error) {
       mostrarMensaje('⚠️ Error de conexión con el backend.', 'danger');
     }
   };
 
-  // Carga los datos del usuario seleccionado en el formulario para editarlos
   const handleEdit = (usuario) => {
     setFormData({
       nombre: usuario.nombre,
       email: usuario.email,
-      password: '', 
+      password: usuario.password || '', // Mantenemos la pass para no borrarla al editar
       region: usuario.region || '',
       comuna: usuario.comuna || '',
       esadmin: usuario.esadmin ? '1' : '0' 
@@ -112,27 +119,26 @@ export default function UsuariosAdmin() {
     setEditandoId(usuario.id);
   };
 
-  // Función DELETE: Pide confirmación y elimina un usuario del sistema
+  // Función DELETE hacia Spring Boot
   const handleDelete = async (id, nombre) => {
     if (window.confirm(`¿Seguro que deseas eliminar al usuario "${nombre}"?`)) {
       try {
-        const response = await fetch(`http://localhost:5000/api/usuarios/${id}`, { method: 'DELETE' });
+        const response = await fetch(`${API_BASE_URL}/usuarios/${id}`, { method: 'DELETE' });
         if (response.ok) {
           obtenerUsuarios();
           mostrarMensaje(`🗑️ "${nombre}" eliminado.`, 'warning');
         } else {
-          mostrarMensaje('❌ No se pudo eliminar. Puede tener órdenes asociadas.', 'danger');
+          mostrarMensaje('❌ No se pudo eliminar.', 'danger');
         }
       } catch (error) {
-        mostrarMensaje('Error de red.', 'danger');
+        mostrarMensaje('Error de red al intentar eliminar.', 'danger');
       }
     }
   };
 
   return (
     <div className="container-fluid py-4 position-relative">
-      
-      {/* Toast de notificaciones visuales */}
+      {/* Toast */}
       {toast.mostrar && (
         <div className={`alert alert-${toast.tipo} position-fixed top-0 end-0 m-3 shadow-lg z-3`} style={{ zIndex: 1050 }}>
           {toast.mensaje}
@@ -149,7 +155,7 @@ export default function UsuariosAdmin() {
       </div>
 
       <div className="row">
-        {/* Columna del Formulario */}
+        {/* Formulario */}
         <div className="col-md-4 mb-4">
           <div className="card shadow-sm">
             <div className="card-header bg-dark text-white">
@@ -166,7 +172,7 @@ export default function UsuariosAdmin() {
                   <input type="email" className="form-control" name="email" value={formData.email} onChange={handleChange} required />
                 </div>
                 <div className="mb-3">
-                  <label className="form-label">Contraseña {editandoId && '(Opcional)'}</label>
+                  <label className="form-label">Contraseña</label>
                   <input type="password" className="form-control" name="password" value={formData.password} onChange={handleChange} required={!editandoId} placeholder="******" />
                 </div>
                 
@@ -208,7 +214,7 @@ export default function UsuariosAdmin() {
           </div>
         </div>
 
-        {/* Columna de la Tabla de Usuarios */}
+        {/* Tabla */}
         <div className="col-md-8">
           <div className="card shadow-sm">
             <div className="card-body p-0 p-md-3">
@@ -235,7 +241,6 @@ export default function UsuariosAdmin() {
                           <td>{usuario.email}</td>
                           <td>{usuario.comuna || 'N/A'}</td>
                           <td>
-                            {/* Insignia dinámica según el rol de administración */}
                             <span className={`badge ${usuario.esadmin ? 'bg-primary' : 'bg-info text-dark'}`}>
                               {usuario.esadmin ? 'Administración' : 'Cliente'}
                             </span>

@@ -1,103 +1,218 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 
+const API_BASE_URL = 'http://localhost:8080/api';
+
 export default function Ordenes() {
-  // Estados para manejar los datos y la interfaz
-  const [ordenes, setOrdenes] = useState([]); // Guarda la lista de todas las órdenes
-  const [ordenSeleccionada, setOrdenSeleccionada] = useState(null); // Guarda la orden a la que le hicimos click para ver detalles
-  const [detalles, setDetalles] = useState([]); // Guarda los productos comprados en esa orden
-  const [cargandoDetalles, setCargandoDetalles] = useState(false); // Controla el spinner mientras carga el modal
-  const [toast, setToast] = useState({ mostrar: false, mensaje: '', tipo: 'success' }); // Controla las notificaciones flotantes
+  const [ordenes, setOrdenes] = useState([]);
+  const [estadosDisponibles, setEstadosDisponibles] = useState([]);
+  const [usuariosMap, setUsuariosMap] = useState({});
+  const [productosMap, setProductosMap] = useState({});
+  const [ordenSeleccionada, setOrdenSeleccionada] = useState(null);
+  const [detalles, setDetalles] = useState([]);
+  const [cargandoDetalles, setCargandoDetalles] = useState(false);
+  const [toast, setToast] = useState({ mostrar: false, mensaje: '', tipo: 'success' });
   
   const location = useLocation();
 
-  // Función para mostrar una alerta temporal (toast) y apagarla a los 3 seg
   const mostrarMensaje = (mensaje, tipo = 'success') => {
     setToast({ mostrar: true, mensaje, tipo });
     setTimeout(() => setToast({ mostrar: false, mensaje: '', tipo: 'success' }), 3000);
   };
 
-  // Trae la lista maestra de órdenes desde el backend
-  const obtenerOrdenes = async () => {
+  // Helpers universales para leer tanto objetos JPA anidados como IDs planos
+  const getEstId = (estObj) => estObj?.idEstadoOrden ?? estObj?.idEstado ?? estObj?.id ?? '';
+  const getEstNombre = (estObj) => estObj?.nombreEstado ?? estObj?.nombre ?? estObj?.estado ?? '';
+
+  const obtenerEstadoDeOrden = (orden) => {
+    if (orden?.estadoOrden && typeof orden.estadoOrden === 'object') {
+      return {
+        id: getEstId(orden.estadoOrden),
+        nombre: getEstNombre(orden.estadoOrden) || 'Pendiente'
+      };
+    }
+    if (orden?.estado && typeof orden.estado === 'object') {
+      return {
+        id: getEstId(orden.estado),
+        nombre: getEstNombre(orden.estado) || 'Pendiente'
+      };
+    }
+    const nombreTexto = typeof orden?.estado === 'string' ? orden.estado : 'Pendiente';
+    const encontrado = estadosDisponibles.find(
+      e => getEstNombre(e).toLowerCase() === nombreTexto.toLowerCase()
+    );
+    return {
+      id: encontrado ? getEstId(encontrado) : nombreTexto,
+      nombre: nombreTexto
+    };
+  };
+
+  const obtenerClienteDeOrden = (orden) => {
+    // 1. Si Spring Boot envía el objeto usuario anidado dentro de la orden
+    if (orden?.usuario && typeof orden.usuario === 'object') {
+      return {
+        id: orden.usuario.id ?? orden.usuario.idUsuario,
+        nombre: orden.usuario.nombre || `Usuario #${orden.usuario.id}`,
+        email: orden.usuario.email || 'Sin correo'
+      };
+    }
+    // 2. Si envía solo el ID (usuarioId o usuario_id)
+    const uId = orden?.usuarioId ?? orden?.usuario_id ?? orden?.idUsuario;
+    if (uId !== undefined && usuariosMap[uId]) {
+      return {
+        id: uId,
+        nombre: usuariosMap[uId].nombre,
+        email: usuariosMap[uId].email || 'Sin correo'
+      };
+    }
+    return {
+      id: uId ?? 'N/A',
+      nombre: orden?.nombre_cliente || (uId ? `Usuario #${uId}` : 'Cliente Registrado'),
+      email: orden?.email_cliente || 'Sin correo'
+    };
+  };
+
+  const obtenerNombreProducto = (item) => {
+    // 1. Si Spring Boot envía el objeto producto anidado dentro de DetalleOrden
+    if (item?.producto && typeof item.producto === 'object') {
+      return item.producto.nombre || item.producto.nombreProducto || `Producto #${item.producto.id}`;
+    }
+    // 2. Si envía productoId o producto_id
+    const pId = item?.productoId ?? item?.producto_id ?? item?.idProducto;
+    if (pId !== undefined && productosMap[pId]) {
+      return productosMap[pId].nombre;
+    }
+    return item?.producto_nombre || item?.nombreProducto || `Producto #${pId ?? item?.id}`;
+  };
+
+  const cargarDatos = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/admin/ordenes', { cache: 'no-store' });
-      if (response.ok) {
-        const data = await response.json();
-        setOrdenes(data);
+      const [resOrd, resEst, resUsu, resProd] = await Promise.all([
+        fetch(`${API_BASE_URL}/ordenes`, { cache: 'no-store' }),
+        fetch(`${API_BASE_URL}/ordenes/estados`, { cache: 'no-store' }),
+        fetch(`${API_BASE_URL}/usuarios`, { cache: 'no-store' }),
+        fetch(`${API_BASE_URL}/productos`, { cache: 'no-store' })
+      ]);
+
+      if (resOrd.ok) setOrdenes(await resOrd.json());
+      if (resEst.ok) setEstadosDisponibles(await resEst.json());
+      
+      if (resUsu.ok) {
+        const listaUsu = await resUsu.json();
+        const mapaU = {};
+        listaUsu.forEach(u => { mapaU[u.id ?? u.idUsuario] = u; });
+        setUsuariosMap(mapaU);
+      }
+
+      if (resProd.ok) {
+        const listaProd = await resProd.json();
+        const mapaP = {};
+        listaProd.forEach(p => { mapaP[p.id ?? p.idProducto] = p; });
+        setProductosMap(mapaP);
       }
     } catch (error) {
-      mostrarMensaje('Error al cargar las órdenes.', 'danger');
+      mostrarMensaje('Error al cargar las órdenes desde el servidor.', 'danger');
     }
   };
 
-  // Se ejecuta automáticamente al cargar la página para rellenar la tabla
   useEffect(() => {
-    obtenerOrdenes();
-  }, [location.key]);
+    cargarDatos();
+  }, [location.pathname, location.key]);
 
-  // Al hacer clic en "Ver detalles", abre el modal y pide al backend los productos de esa orden específica
   const verDetalles = async (orden) => {
-    setOrdenSeleccionada(orden); // Abre el modal
-    setCargandoDetalles(true); // Prende el spinner
+    setOrdenSeleccionada(orden);
+    setCargandoDetalles(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/ordenes/${orden.id}/detalle`);
+      const idOrden = orden.id ?? orden.idOrden;
+      const response = await fetch(`${API_BASE_URL}/detalle-ordenes/orden/${idOrden}`, { cache: 'no-store' });
       if (response.ok) {
-        const data = await response.json();
-        setDetalles(data); // Guarda los productos comprados
+        setDetalles(await response.json());
       } else {
         setDetalles([]);
       }
     } catch (error) {
       mostrarMensaje('Error al cargar los detalles de la orden.', 'danger');
     } finally {
-      setCargandoDetalles(false); // Apaga el spinner
+      setCargandoDetalles(false);
     }
   };
 
-  // Cambia el estado del envío (Pendiente, En camino, Entregado) enviando un PUT al servidor
-  const cambiarEstado = async (id, nuevoEstado) => {
+  const cambiarEstado = async (orden, valorSeleccionado) => {
+    const idOrden = orden.id ?? orden.idOrden;
+
+    // Busca el objeto de estado completo en la lista traída de /api/ordenes/estados
+    const estadoObj = estadosDisponibles.find(
+      e => String(getEstId(e)) === String(valorSeleccionado) || getEstNombre(e) === valorSeleccionado
+    );
+
+    const nombreNuevoEstado = estadoObj ? getEstNombre(estadoObj) : valorSeleccionado;
+
     try {
-      const response = await fetch(`http://localhost:5000/api/admin/ordenes/${id}/estado`, {
+      // Mantenemos todas las propiedades originales de la orden (incluido usuario) y actualizamos estadoOrden y estado
+      const payload = {
+        ...orden,
+        estado: nombreNuevoEstado,
+        estadoOrden: estadoObj ? estadoObj : { nombreEstado: nombreNuevoEstado }
+      };
+
+      const response = await fetch(`${API_BASE_URL}/ordenes/${idOrden}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estado: nuevoEstado })
+        body: JSON.stringify(payload)
       });
+
       if (response.ok) {
-        obtenerOrdenes(); // Recarga la tabla completa para actualizar colores
-        mostrarMensaje(`Estado actualizado a "${nuevoEstado}"`);
+        const ordenActualizada = await response.json().catch(() => payload);
+        setOrdenes(prev =>
+          prev.map(o => (o.id ?? o.idOrden) === idOrden ? { ...o, ...ordenActualizada, estado: nombreNuevoEstado, estadoOrden: estadoObj || o.estadoOrden } : o)
+        );
+        mostrarMensaje(`✅ Orden #${idOrden} actualizada a "${nombreNuevoEstado}"`);
+      } else {
+        mostrarMensaje('❌ No se pudo actualizar el estado en el servidor.', 'danger');
       }
     } catch (error) {
-      mostrarMensaje('Error al actualizar el estado.', 'danger');
+      mostrarMensaje('Error de red al actualizar el estado.', 'danger');
     }
   };
 
-  // Formatea la fecha de MySQL (ISO) a formato chileno (DD/MM/YYYY)
   const formatearFecha = (fechaISO) => {
+    if (!fechaISO) return 'N/A';
     return new Date(fechaISO).toLocaleDateString('es-CL');
   };
 
-  // Asigna un color al selector (select) de estado dependiendo de su valor
-  const badgeColor = (estado) => {
-    switch (estado) {
-      case 'Pendiente': return 'bg-warning text-dark';
-      case 'En Camino': return 'bg-info text-dark';
-      case 'Entregado': return 'bg-success';
-      case 'Completado': return 'bg-success';
-      default: return 'bg-secondary';
-    }
+  const badgeColor = (nombreEstado) => {
+    const est = (nombreEstado || '').toLowerCase();
+    if (est.includes('pendiente')) return 'bg-warning text-dark';
+    if (est.includes('preparaci')) return 'bg-primary text-white';
+    if (est.includes('camino')) return 'bg-info text-dark';
+    if (est.includes('entregado') || est.includes('completado')) return 'bg-success text-white';
+    if (est.includes('cancelado') || est.includes('rechazado')) return 'bg-danger text-white';
+    return 'bg-secondary text-white';
   };
+
+  // Si el endpoint /api/ordenes/estados aún no devuelve filas, usamos la lista por defecto
+  const listaOpcionesEstado = estadosDisponibles.length > 0
+    ? estadosDisponibles
+    : [
+        { id: 1, nombreEstado: 'Pendiente' },
+        { id: 2, nombreEstado: 'En Preparación' },
+        { id: 3, nombreEstado: 'En Camino' },
+        { id: 4, nombreEstado: 'Entregado' },
+        { id: 5, nombreEstado: 'Completado' },
+        { id: 6, nombreEstado: 'Rechazado' }
+      ];
+
+  const clienteModal = ordenSeleccionada ? obtenerClienteDeOrden(ordenSeleccionada) : null;
 
   return (
     <div className="container-fluid py-4 position-relative">
       
-      {/* Zona de Notificación (Toast) */}
       {toast.mostrar && (
         <div className={`alert alert-${toast.tipo} position-fixed top-0 end-0 m-3 shadow-lg z-3`} style={{ zIndex: 1050 }}>
           {toast.mensaje}
         </div>
       )}
 
-      {/* Zona del Modal: Solo se renderiza si hay una ordenSeleccionada */}
       {ordenSeleccionada && (
         <>
           <div className="modal-backdrop fade show" style={{ zIndex: 1040 }}></div>
@@ -105,16 +220,19 @@ export default function Ordenes() {
             <div className="modal-dialog modal-dialog-centered modal-lg">
               <div className="modal-content">
                 <div className="modal-header bg-dark text-white">
-                  <h5 className="modal-title">Detalles de la Orden #{ordenSeleccionada.id}</h5>
+                  <h5 className="modal-title">Detalles de la Orden #{ordenSeleccionada.id ?? ordenSeleccionada.idOrden}</h5>
                   <button type="button" className="btn-close btn-close-white" onClick={() => setOrdenSeleccionada(null)}></button>
                 </div>
                 
-                {/* Cuerpo del Modal: Muestra datos del cliente y la tabla de sus productos */}
                 <div className="modal-body">
                   <div className="row mb-3">
                     <div className="col-sm-6">
-                      <p className="mb-1"><strong>Cliente:</strong> {ordenSeleccionada.nombre_cliente || 'Anónimo'}</p>
-                      <p className="mb-1"><strong>Email:</strong> {ordenSeleccionada.email_cliente || 'Sin registro'}</p>
+                      <p className="mb-1">
+                        <strong>Cliente:</strong> {clienteModal?.nombre}
+                      </p>
+                      <p className="mb-1">
+                        <strong>Email:</strong> {clienteModal?.email}
+                      </p>
                     </div>
                     <div className="col-sm-6 text-sm-end">
                       <p className="mb-1"><strong>Fecha:</strong> {formatearFecha(ordenSeleccionada.fecha)}</p>
@@ -124,7 +242,6 @@ export default function Ordenes() {
                   
                   <h6 className="fw-bold border-bottom pb-2">Productos comprados</h6>
                   
-                  {/* Si está cargando detalles muestra spinner, si no, dibuja la tabla */}
                   {cargandoDetalles ? (
                     <div className="text-center py-4"><div className="spinner-border text-primary" role="status"></div></div>
                   ) : detalles.length === 0 ? (
@@ -135,20 +252,25 @@ export default function Ordenes() {
                         <thead className="table-light">
                           <tr>
                             <th>Producto</th>
-                            <th className="text-center">Cant.</th>
+                            <th className="text-center">Cantidad</th>
                             <th className="text-end">Precio Unit.</th>
                             <th className="text-end">Subtotal</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {detalles.map(item => (
-                            <tr key={item.id}>
-                              <td>{item.producto_nombre}</td>
-                              <td className="text-center">{item.cantidad}</td>
-                              <td className="text-end">${Number(item.precio_unitario).toLocaleString('es-CL')}</td>
-                              <td className="text-end fw-bold">${(item.cantidad * item.precio_unitario).toLocaleString('es-CL')}</td>
-                            </tr>
-                          ))}
+                          {detalles.map((item, idx) => {
+                            const precioUnit = Number(
+                              item.precioUnitario ?? item.precio_unitario ?? item.producto?.precio ?? 0
+                            );
+                            return (
+                              <tr key={item.id ?? item.idDetalleOrden ?? idx}>
+                                <td className="fw-semibold">{obtenerNombreProducto(item)}</td>
+                                <td className="text-center">{item.cantidad}</td>
+                                <td className="text-end">${precioUnit.toLocaleString('es-CL')}</td>
+                                <td className="text-end fw-bold">${(item.cantidad * precioUnit).toLocaleString('es-CL')}</td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -166,7 +288,6 @@ export default function Ordenes() {
 
       <h2 className="mb-4 fw-bold">Gestión de Órdenes</h2>
 
-      {/* Tabla Principal: Lista de todas las órdenes en sistema */}
       <div className="card shadow-sm">
         <div className="card-header bg-white">
           <h5 className="mb-0">Historial de Compras</h5>
@@ -188,32 +309,43 @@ export default function Ordenes() {
                 {ordenes.length === 0 ? (
                   <tr><td colSpan="6" className="text-center py-4 text-muted">No hay órdenes registradas.</td></tr>
                 ) : (
-                  ordenes.map(orden => (
-                    <tr key={orden.id}>
-                      <td><span className="badge bg-secondary">#{orden.id}</span></td>
-                      <td>{orden.nombre_cliente || `ID: ${orden.usuario_id}`}</td>
-                      <td>{formatearFecha(orden.fecha)}</td>
-                      <td className="fw-bold">${Number(orden.total).toLocaleString('es-CL')}</td>
-                      <td>
-                        {/* Dropdown integrado para cambiar el estado. Llama a 'cambiarEstado' en tiempo real */}
-                        <select 
-                          className={`form-select form-select-sm fw-bold ${badgeColor(orden.estado)}`} 
-                          value={orden.estado} 
-                          onChange={(e) => cambiarEstado(orden.id, e.target.value)}
-                          style={{ width: '130px', border: 'none' }}
-                        >
-                          <option value="Pendiente" className="bg-white text-dark">Pendiente</option>
-                          <option value="En Camino" className="bg-white text-dark">En Camino</option>
-                          <option value="Entregado" className="bg-white text-dark">Entregado</option>
-                        </select>
-                      </td>
-                      <td>
-                        <button onClick={() => verDetalles(orden)} className="btn btn-sm btn-outline-primary">
-                          Ver detalles
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                  ordenes.map((orden, index) => {
+                    const idOrden = orden.id ?? orden.idOrden ?? index;
+                    const infoEstado = obtenerEstadoDeOrden(orden);
+                    const infoCliente = obtenerClienteDeOrden(orden);
+
+                    return (
+                      <tr key={idOrden}>
+                        <td><span className="badge bg-secondary">#{idOrden}</span></td>
+                        <td className="fw-semibold">{infoCliente.nombre}</td>
+                        <td>{formatearFecha(orden.fecha)}</td>
+                        <td className="fw-bold">${Number(orden.total).toLocaleString('es-CL')}</td>
+                        <td>
+                          <select 
+                            className={`form-select form-select-sm fw-bold ${badgeColor(infoEstado.nombre)}`} 
+                            value={infoEstado.id || infoEstado.nombre} 
+                            onChange={(e) => cambiarEstado(orden, e.target.value)}
+                            style={{ width: '165px', border: 'none', cursor: 'pointer' }}
+                          >
+                            {listaOpcionesEstado.map((est, i) => {
+                              const valId = getEstId(est) || getEstNombre(est);
+                              const textoEst = getEstNombre(est);
+                              return (
+                                <option key={valId || i} value={valId} className="bg-white text-dark">
+                                  {textoEst}
+                                </option>
+                              );
+                            })}
+                          </select>
+                        </td>
+                        <td>
+                          <button onClick={() => verDetalles(orden)} className="btn btn-sm btn-outline-primary">
+                            Ver detalles
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
