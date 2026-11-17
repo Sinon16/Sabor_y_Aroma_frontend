@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-
-const API_BASE_URL = 'http://localhost:8080/api';
-
+import { apiFetch } from '../../service/api';
 export default function Ordenes() {
   const [ordenes, setOrdenes] = useState([]);
   const [estadosDisponibles, setEstadosDisponibles] = useState([]);
@@ -88,10 +86,10 @@ export default function Ordenes() {
   const cargarDatos = async () => {
     try {
       const [resOrd, resEst, resUsu, resProd] = await Promise.all([
-        fetch(`${API_BASE_URL}/ordenes`, { cache: 'no-store' }),
-        fetch(`${API_BASE_URL}/ordenes/estados`, { cache: 'no-store' }),
-        fetch(`${API_BASE_URL}/usuarios`, { cache: 'no-store' }),
-        fetch(`${API_BASE_URL}/productos`, { cache: 'no-store' })
+        apiFetch('/ordenes', { cache: 'no-store' }),
+        apiFetch('/ordenes/estados', { cache: 'no-store' }),
+        apiFetch('/usuarios', { cache: 'no-store' }),
+        apiFetch('/productos', { cache: 'no-store' })
       ]);
 
       if (resOrd.ok) setOrdenes(await resOrd.json());
@@ -124,7 +122,7 @@ export default function Ordenes() {
     setCargandoDetalles(true);
     try {
       const idOrden = orden.id ?? orden.idOrden;
-      const response = await fetch(`${API_BASE_URL}/detalle-ordenes/orden/${idOrden}`, { cache: 'no-store' });
+      const response = await apiFetch(`/detalle-ordenes/orden/${idOrden}`, { cache: 'no-store' });
       if (response.ok) {
         setDetalles(await response.json());
       } else {
@@ -155,9 +153,8 @@ export default function Ordenes() {
         estadoOrden: estadoObj ? estadoObj : { nombreEstado: nombreNuevoEstado }
       };
 
-      const response = await fetch(`${API_BASE_URL}/ordenes/${idOrden}`, {
+      const response = await apiFetch(`/ordenes/${idOrden}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 

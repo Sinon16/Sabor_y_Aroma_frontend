@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 
-const API_BASE_URL = 'http://localhost:8080/api';
+import { apiFetch } from '../../service/api';
 
 export default function CategoriasAdmin() {
   const [categorias, setCategorias] = useState([]);
@@ -18,7 +18,7 @@ export default function CategoriasAdmin() {
 
   const obtenerCategorias = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/categorias`, { cache: 'no-store' });
+      const response = await apiFetch('/categorias', { cache: 'no-store' });
       if (response.ok) {
         setCategorias(await response.json());
       }
@@ -34,15 +34,15 @@ export default function CategoriasAdmin() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const url = editandoId 
-        ? `${API_BASE_URL}/categorias/${editandoId}` 
-        : `${API_BASE_URL}/categorias`;
+      const endpoint = editandoId 
+        ? `/categorias/${editandoId}` 
+        : `/categorias`;
       
       const method = editandoId ? 'PUT' : 'POST';
 
-      const response = await fetch(url, {
+      // apiFetch ya inyecta el Content-Type y el Authorization
+      const response = await apiFetch(endpoint, {
         method: method,
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nombreCategoria: nombre })
       });
 
@@ -68,7 +68,7 @@ export default function CategoriasAdmin() {
   const handleDelete = async (id, nombreCat) => {
     if (window.confirm(`¿Seguro que deseas eliminar la categoría "${nombreCat}"?`)) {
       try {
-        const response = await fetch(`${API_BASE_URL}/categorias/${id}`, { method: 'DELETE' });
+        const response = await apiFetch(`/categorias/${id}`, { method: 'DELETE' });
         if (response.ok) {
           obtenerCategorias();
           mostrarMensaje(`🗑️ "${nombreCat}" eliminada.`, 'warning');

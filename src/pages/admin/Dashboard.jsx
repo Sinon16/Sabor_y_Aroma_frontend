@@ -12,7 +12,6 @@ export default function Dashboard() {
   const containerRef = useRef(null);
   const location = useLocation();
 
-  // Función que consulta cada endpoint de forma independiente para que si uno tarda, los demás carguen igual
   const cargarMetricas = useCallback(async () => {
     try {
       const [resOrdenes, resProductos, resUsuarios] = await Promise.allSettled([
@@ -50,7 +49,6 @@ export default function Dashboard() {
     }
   }, []);
 
-  // 1. Carga al entrar y reintenta automáticamente si aún está en 0
   useEffect(() => {
     cargarMetricas();
 
@@ -58,7 +56,6 @@ export default function Dashboard() {
       cargarMetricas();
     }, 500);
 
-    // Mantiene los contadores sincronizados con la BD cada 3 segundos
     const intervalo = setInterval(() => {
       cargarMetricas();
     }, 3000);
@@ -69,7 +66,6 @@ export default function Dashboard() {
     };
   }, [cargarMetricas, location.pathname, location.key]);
 
-  // 2. Detecta cuando AdminLayout cambia este panel de display:none a display:block
   useEffect(() => {
     if (!containerRef.current) return;
 

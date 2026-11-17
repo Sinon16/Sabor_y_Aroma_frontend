@@ -1,26 +1,25 @@
 import React, { useState, useEffect } from 'react';
 
-const API_BASE_URL = 'http://localhost:8080/api';
-
+import { apiFetch } from '../../service/api';
 export default function ReportesAdmin() {
   const [historial, setHistorial] = useState([]);
   const [filtroTipo, setFiltroTipo] = useState('Todos');
   const [loadingExcel, setLoadingExcel] = useState(false);
 
-  // Llama a Spring Boot para traer los reportes de la tabla
+  // Llama a Spring Boot para traer los reportes de la tabla usando el wrapper
   useEffect(() => {
-    fetch(`${API_BASE_URL}/reportes`, { cache: 'no-store' })
+    apiFetch('/reportes', { cache: 'no-store' })
       .then(respuesta => respuesta.json())
       .then(datos => setHistorial(Array.isArray(datos) ? datos : []))
       .catch(error => console.error("Error cargando la base de datos:", error));
   }, []);
 
-  // Descarga el archivo Excel generado por Spring Boot usando fetch nativo
+  // Descarga el archivo Excel generado por Spring Boot usando apiFetch
   const descargarExcel = async () => {
     setLoadingExcel(true);
     try {
-      const urlPeticion = `${API_BASE_URL}/reportes/exportar?tipo=${encodeURIComponent(filtroTipo)}`;
-      const response = await fetch(urlPeticion);
+      const urlPeticion = `/reportes/exportar?tipo=${encodeURIComponent(filtroTipo)}`;
+      const response = await apiFetch(urlPeticion);
 
       if (!response.ok) {
         throw new Error('Error al generar el archivo Excel en el servidor');

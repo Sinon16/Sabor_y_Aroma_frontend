@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 
-const API_BASE_URL = 'http://localhost:8080/api';
+import { apiFetch } from '../../service/api';
 
 export default function ProductosAdmin() {
   const [productos, setProductos] = useState([]);
@@ -23,8 +23,8 @@ export default function ProductosAdmin() {
   const cargarDatos = async () => {
     try {
       const [resProd, resCat] = await Promise.all([
-        fetch(`${API_BASE_URL}/productos`, { cache: 'no-store' }),
-        fetch(`${API_BASE_URL}/categorias`, { cache: 'no-store' })
+        apiFetch(`/productos`, { cache: 'no-store' }),
+        apiFetch(`/categorias`, { cache: 'no-store' })
       ]);
 
       if (resProd.ok) setProductos(await resProd.json());
@@ -61,12 +61,9 @@ export default function ProductosAdmin() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const url = editandoId 
-        ? `${API_BASE_URL}/productos/${editandoId}` 
-        : `${API_BASE_URL}/productos`;
-      
+      const endpoint = editandoId ? `/productos/${editandoId}` : `/productos`;
       const method = editandoId ? 'PUT' : 'POST';
-
+      
       const categoriaSeleccionada = categorias.find(
         c => String(c.idCategoria) === String(formData.categoriaId)
       );
@@ -81,9 +78,8 @@ export default function ProductosAdmin() {
         oferta: formData.enOferta === '1' ? { idOferta: 1 } : null
       };
 
-      const response = await fetch(url, {
+      const response = await apiFetch(endpoint, {
         method: method,
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(datosAEnviar)
       });
 
@@ -124,7 +120,7 @@ export default function ProductosAdmin() {
   const handleDelete = async (id, nombre) => {
     if (window.confirm(`¿Seguro que deseas eliminar "${nombre}"?`)) {
       try {
-        const response = await fetch(`${API_BASE_URL}/productos/${id}`, { method: 'DELETE' });
+        const response = await apiFetch(`/productos/${id}`, { method: 'DELETE' });
         if (response.ok) {
           cargarDatos();
           mostrarMensaje(`🗑️ "${nombre}" eliminado.`, 'warning');

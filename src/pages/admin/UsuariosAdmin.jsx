@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 
+import { apiFetch } from '../../service/api';
 // Diccionario estático para los selects de región y comuna
 const datosUbicacion = {
   "Región Metropolitana": ["Santiago", "Providencia", "San Joaquín", "Maipú", "Puente Alto", "La Florida", "El Bosque"],
   "Valparaíso": ["Valparaíso", "Viña del Mar", "Quilpué"],
   "Biobío": ["Concepción", "Talcahuano", "Los Ángeles"]
 };
-
-// Se define la ruta base hacia Spring Boot
-const API_BASE_URL = 'http://localhost:8080/api';
 
 export default function UsuariosAdmin() {
   const [usuarios, setUsuarios] = useState([]);
@@ -28,10 +26,10 @@ export default function UsuariosAdmin() {
     setTimeout(() => setToast({ mostrar: false, mensaje: '', tipo: 'success' }), 3000);
   };
 
-  // Función GET: Obtiene la lista de usuarios desde Spring Boot
+  // Función GET: Obtiene la lista de usuarios usando apiFetch
   const obtenerUsuarios = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/usuarios`, { cache: 'no-store' });
+      const response = await apiFetch('/usuarios', { cache: 'no-store' });
       if (response.ok) {
         setUsuarios(await response.json());
       }
@@ -59,13 +57,13 @@ export default function UsuariosAdmin() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // Función POST / PUT hacia Spring Boot
+  // Función POST / PUT usando apiFetch
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const url = editandoId 
-        ? `${API_BASE_URL}/usuarios/${editandoId}` 
-        : `${API_BASE_URL}/usuarios`; 
+      const endpoint = editandoId 
+        ? `/usuarios/${editandoId}` 
+        : `/usuarios`; 
       
       const method = editandoId ? 'PUT' : 'POST';
 
@@ -80,9 +78,9 @@ export default function UsuariosAdmin() {
         payload.id = editandoId;
       }
 
-      const response = await fetch(url, {
+      // El wrapper apiFetch inyecta automáticamente el Content-Type y el Authorization
+      const response = await apiFetch(endpoint, {
         method: method,
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
@@ -119,11 +117,11 @@ export default function UsuariosAdmin() {
     setEditandoId(usuario.id);
   };
 
-  // Función DELETE hacia Spring Boot
+  // Función DELETE usando apiFetch
   const handleDelete = async (id, nombre) => {
     if (window.confirm(`¿Seguro que deseas eliminar al usuario "${nombre}"?`)) {
       try {
-        const response = await fetch(`${API_BASE_URL}/usuarios/${id}`, { method: 'DELETE' });
+        const response = await apiFetch(`/usuarios/${id}`, { method: 'DELETE' });
         if (response.ok) {
           obtenerUsuarios();
           mostrarMensaje(`🗑️ "${nombre}" eliminado.`, 'warning');
