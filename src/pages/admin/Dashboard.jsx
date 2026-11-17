@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-
-const API_BASE_URL = 'http://localhost:8080/api';
+import { apiFetch } from '../../service/api';
 
 export default function Dashboard() {
   const [metricas, setMetricas] = useState({
@@ -17,9 +16,9 @@ export default function Dashboard() {
   const cargarMetricas = useCallback(async () => {
     try {
       const [resOrdenes, resProductos, resUsuarios] = await Promise.allSettled([
-        fetch(`${API_BASE_URL}/ordenes`, { cache: 'no-store' }),
-        fetch(`${API_BASE_URL}/productos`, { cache: 'no-store' }),
-        fetch(`${API_BASE_URL}/usuarios`, { cache: 'no-store' })
+        apiFetch('/ordenes', { cache: 'no-store' }),
+        apiFetch('/productos', { cache: 'no-store' }),
+        apiFetch('/usuarios', { cache: 'no-store' })
       ]);
 
       let totalCompras = 0;
