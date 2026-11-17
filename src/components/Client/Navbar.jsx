@@ -2,8 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
-
-const API_BASE_URL = 'http://localhost:8080/api';
+import { apiFetch } from '../../service/api';
 
 export default function Navbar() {
   const { usuario, cerrarSesion, esAdministrador } = useAuth();
@@ -17,7 +16,7 @@ export default function Navbar() {
 
   const cargarCategorias = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/categorias`);
+      const res = await apiFetch('/categorias');
       if (res.ok) {
         const data = await res.json();
         setCategorias(data);
@@ -81,10 +80,10 @@ export default function Navbar() {
         </div>
 
         {/* Botón Hamburguesa para Mobile/Tablet */}
-        <button 
+        <button
           type="button"
-          className="btn-hamburger" 
-          onClick={toggleMenuMobile} 
+          className="btn-hamburger"
+          onClick={toggleMenuMobile}
           aria-label="Toggle navigation"
         >
           {menuMobileAbierto ? '✕' : '☰'}
@@ -99,15 +98,15 @@ export default function Navbar() {
 
             <li className="dropdown-categorias-container" ref={dropdownRef}>
               <div className="dropdown-trigger-wrapper">
-                <Link 
-                  to="/catalogo" 
-                  className="nav-link-categorias" 
+                <Link
+                  to="/catalogo"
+                  className="nav-link-categorias"
                   onClick={() => setMenuMobileAbierto(false)}
                 >
                   Categorías
                 </Link>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className="btn-flecha-dropdown"
                   onClick={toggleDropdown}
                   title="Desplegar categorías"

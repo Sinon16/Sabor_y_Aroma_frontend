@@ -490,4 +490,4 @@ export default function Registro() {
       </div>
     </div>
   );
-}s
+}
