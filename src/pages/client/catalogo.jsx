@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
-
-const API_BASE_URL = 'http://localhost:8080/api';
+import { apiFetch } from '../../service/api';
 
 export default function Catalogo() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -28,8 +27,8 @@ export default function Catalogo() {
       setErrorBD('');
 
       const [resProd, resCat] = await Promise.all([
-        fetch(`${API_BASE_URL}/productos`),
-        fetch(`${API_BASE_URL}/categorias`)
+        apiFetch('/productos'),
+        apiFetch('/categorias')
       ]);
 
       if (!resProd.ok || !resCat.ok) {
@@ -76,6 +75,23 @@ export default function Catalogo() {
     return num.toLocaleString('es-CL', { style: 'currency', currency: 'CLP' });
   };
 
+  // Calcula datos de oferta (porcentaje, precio original y precio con descuento)
+  const obtenerInfoPrecio = (prod) => {
+    const precioOriginal = Number(prod?.precio || 0);
+    const porcentajeDesc = Number(prod?.oferta?.porcentajeDescuento || 0);
+    const tieneOferta = porcentajeDesc > 0 && porcentajeDesc < 100;
+    const precioFinal = tieneOferta
+      ? Math.round(precioOriginal * (1 - porcentajeDesc / 100))
+      : precioOriginal;
+
+    return {
+      tieneOferta,
+      porcentajeDesc,
+      precioOriginal,
+      precioFinal
+    };
+  };
+
   const handleAgregarAlPedido = async (producto) => {
     if (!usuario) {
       setMensajeToast('⚠️ Debes iniciar sesión para agregar productos al pedido.');
@@ -112,12 +128,11 @@ export default function Catalogo() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Extrae el nombre de la categoría del objeto de Spring Boot
   const productosFiltrados = (categoriaURL === 'todas' || !categoriaURL)
     ? productos
     : productos.filter(p => {
-        const nombreCat = typeof p.categoria === 'object' 
-          ? p.categoria?.nombreCategoria 
+        const nombreCat = typeof p.categoria === 'object'
+          ? p.categoria?.nombreCategoria
           : p.categoria;
         return nombreCat?.trim().toLowerCase() === categoriaURL.trim().toLowerCase();
       });
@@ -125,6 +140,49 @@ export default function Catalogo() {
   const obtenerRecomendados = (idActual) => {
     const disponibles = productos.filter(p => p.id !== idActual);
     return [...disponibles].sort(() => 0.5 - Math.random()).slice(0, 4);
+  };
+
+  // Renderizado reutilizable para bloque de precios con o sin descuento
+  const renderBloquePrecio = (prod) => {
+    const { tieneOferta, porcentajeDesc, precioOriginal, precioFinal } = obtenerInfoPrecio(prod);
+
+    if (!tieneOferta) {
+      return <p className="precio">{formatearPrecio(precioOriginal)}</p>;
+    }
+
+    return (
+      <div className="precio-oferta-box" style={{ margin: '8px 0' }}>
+        <span
+          className="badge-oferta"
+          style={{
+            backgroundColor: '#e63946',
+            color: '#fff',
+            padding: '2px 8px',
+            borderRadius: '12px',
+            fontSize: '0.8rem',
+            fontWeight: 'bold',
+            display: 'inline-block',
+            marginBottom: '4px'
+          }}
+        >
+          -{porcentajeDesc}% OFF
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+          <span
+            style={{
+              textDecoration: 'line-through',
+              color: '#888',
+              fontSize: '0.9rem'
+            }}
+          >
+            {formatearPrecio(precioOriginal)}
+          </span>
+          <span className="precio" style={{ color: '#2a9d8f', fontWeight: 'bold', margin: 0 }}>
+            {formatearPrecio(precioFinal)}
+          </span>
+        </div>
+      </div>
+    );
   };
 
   if (cargando) {
@@ -161,24 +219,49 @@ export default function Catalogo() {
 
           <div className="detalle-container">
             <div className="detalle-imagen">
-              <img 
-                src={productoDetalle.imagen} 
+              <img
+                src={productoDetalle.imagen}
                 alt={productoDetalle.nombre}
-                onError={(e) => { e.target.src = 'https://via.placeholder.com/400x300?text=Sin+Imagen'; }} 
+                onError={(e) => { e.target.src = 'https://via.placeholder.com/400x300?text=Sin+Imagen'; }}
               />
             </div>
             <div className="detalle-info">
               <h2>{productoDetalle.nombre}</h2>
-              <span className="precio">{formatearPrecio(productoDetalle.precio)}</span>
-              {productoDetalle.oferta && (
-                <span className="badge-oferta">
-                  {productoDetalle.oferta.porcentajeDescuento}% OFF
-                </span>
-              )}
+
+              {(() => {
+                const { tieneOferta, porcentajeDesc, precioOriginal, precioFinal } = obtenerInfoPrecio(productoDetalle);
+                return tieneOferta ? (
+                  <div style={{ margin: '10px 0' }}>
+                    <span
+                      className="badge-oferta"
+                      style={{
+                        backgroundColor: '#e63946',
+                        color: '#fff',
+                        padding: '4px 10px',
+                        borderRadius: '12px',
+                        fontSize: '0.85rem',
+                        fontWeight: 'bold',
+                        marginRight: '10px'
+                      }}
+                    >
+                      -{porcentajeDesc}% OFF
+                    </span>
+                    <span style={{ textDecoration: 'line-through', color: '#888', fontSize: '1.1rem', marginRight: '10px' }}>
+                      {formatearPrecio(precioOriginal)}
+                    </span>
+                    <span className="precio" style={{ color: '#2a9d8f', fontWeight: 'bold', fontSize: '1.4rem' }}>
+                      {formatearPrecio(precioFinal)}
+                    </span>
+                  </div>
+                ) : (
+                  <span className="precio">{formatearPrecio(precioOriginal)}</span>
+                );
+              })()}
+
               <p>{productoDetalle.descripcion}</p>
               <div>
-                <button 
-                  className="btn-primary" 
+                <button
+                  className="btn-primary"
                   onClick={() => handleAgregarAlPedido(productoDetalle)}
                 >
                   Agregar al Pedido
@@ -192,9 +275,9 @@ export default function Catalogo() {
             <div className="productos-grid">
               {obtenerRecomendados(productoDetalle.id).map((rec) => (
                 <article key={rec.id} className="hero-banner">
-                  <img 
-                    src={rec.imagen} 
-                    alt={rec.nombre} 
+                  <img
+                    src={rec.imagen}
+                    alt={rec.nombre}
                     onClick={() => verDetalle(rec)}
                     onError={(e) => { e.target.src = 'https://via.placeholder.com/300x200?text=Sin+Imagen'; }}
                     className="clickable"
@@ -202,9 +285,9 @@ export default function Catalogo() {
                   <h3 onClick={() => verDetalle(rec)} className="clickable">
                     {rec.nombre}
                   </h3>
-                  <p className="precio">{formatearPrecio(rec.precio)}</p>
-                  <button 
-                    className="btn-primary" 
+                  {renderBloquePrecio(rec)}
+                  <button
+                    className="btn-primary"
                     onClick={() => handleAgregarAlPedido(rec)}
                   >
                     Agregar al Pedido
@@ -220,8 +303,8 @@ export default function Catalogo() {
             <h3>Categorías</h3>
             <ul>
               <li>
-                <a 
-                  href="#" 
+                <a
+                  href="#"
                   className={categoriaURL === 'todas' || !categoriaURL ? 'active' : ''}
                   onClick={(e) => { e.preventDefault(); setSearchParams({}); }}
                 >
@@ -230,12 +313,12 @@ export default function Catalogo() {
               </li>
               {categorias.map((cat) => (
                 <li key={cat.idCategoria}>
-                  <a 
-                    href="#" 
+                  <a
+                    href="#"
                     className={categoriaURL.toLowerCase() === cat.nombreCategoria.toLowerCase() ? 'active' : ''}
-                    onClick={(e) => { 
-                      e.preventDefault(); 
-                      setSearchParams({ cat: cat.nombreCategoria }); 
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setSearchParams({ cat: cat.nombreCategoria });
                     }}
                   >
                     {cat.nombreCategoria}
@@ -254,9 +337,9 @@ export default function Catalogo() {
               ) : (
                 productosFiltrados.map((p) => (
                   <article key={p.id} className="hero-banner">
-                    <img 
-                      src={p.imagen} 
-                      alt={p.nombre} 
+                    <img
+                      src={p.imagen}
+                      alt={p.nombre}
                       onClick={() => verDetalle(p)}
                       onError={(e) => { e.target.src = 'https://via.placeholder.com/300x200?text=Sin+Imagen'; }}
                       className="clickable"
@@ -264,9 +347,9 @@ export default function Catalogo() {
                     <h3 onClick={() => verDetalle(p)} className="clickable">
                       {p.nombre}
                     </h3>
-                    <p className="precio">{formatearPrecio(p.precio)}</p>
-                    <button 
-                      className="btn-primary" 
+                    {renderBloquePrecio(p)}
+                    <button
+                      className="btn-primary"
                       onClick={() => handleAgregarAlPedido(p)}
                     >
                       Agregar al Pedido

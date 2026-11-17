@@ -2,9 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
-
-// URL Base del Backend Spring Boot
-const API_BASE_URL = 'http://localhost:8080/api';
+import { apiFetch } from '../../service/api';
 
 export default function Ofertas() {
   const navigate = useNavigate();
@@ -19,7 +17,7 @@ export default function Ofertas() {
     const cargarOfertas = async () => {
       try {
         setCargando(true);
-        const res = await fetch(`${API_BASE_URL}/productos`);
+        const res = await apiFetch('/productos');
         if (res.ok) {
           const data = await res.json();
           // Filtra productos que contengan un objeto de oferta con descuento mayor a 0
@@ -106,14 +104,13 @@ export default function Ofertas() {
 
               return (
                 <article key={p.id} className="hero-banner card-oferta">
-                  {/* Etiqueta destacada de descuento */}
                   <div className="badge-descuento">
                     -{porcentajeDesc}% OFF
                   </div>
 
-                  <img 
-                    src={p.imagen} 
-                    alt={p.nombre} 
+                  <img
+                    src={p.imagen}
+                    alt={p.nombre}
                     onError={(e) => { e.target.src = 'https://via.placeholder.com/300x200?text=Sin+Imagen'; }}
                   />
 
@@ -125,8 +122,8 @@ export default function Ofertas() {
                     <span className="precio-oferta-destacado">{formatearPrecio(precioConDescuento)}</span>
                   </div>
 
-                  <button 
-                    className="btn-primary" 
+                  <button
+                    className="btn-primary"
                     onClick={() => handleAgregarAlPedido(p)}
                   >
                     Agregar al Pedido

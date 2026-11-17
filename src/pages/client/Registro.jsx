@@ -5,8 +5,7 @@ import Form from 'react-bootstrap/Form';
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 import { useAuth } from '../../context/AuthContext';
-
-const API_BASE_URL = 'http://localhost:8080/api';
+import { apiFetch } from '../../service/api';
 
 const estadoInicial = {
   nombre: '',
@@ -38,7 +37,7 @@ export default function Registro() {
     const cargarRegionesBD = async () => {
       try {
         setCargandoRegiones(true);
-        const res = await fetch(`${API_BASE_URL}/regiones`);
+        const res = await apiFetch('/regiones');
         if (res.ok) {
           const data = await res.json();
           setListaRegiones(data);
@@ -62,7 +61,7 @@ export default function Registro() {
 
     const cargarComunasBD = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/comunas?region=${encodeURIComponent(formData.region)}`);
+        const res = await apiFetch(`/comunas?region=${encodeURIComponent(formData.region)}`);
         if (res.ok) {
           const data = await res.json();
           setListaComunas(data);
@@ -190,7 +189,6 @@ export default function Registro() {
       const emailGoogle = decoded.email.toLowerCase();
       const nombreGoogle = decoded.name;
 
-      // Validación de Dominios Permitidos
       const esGmail = emailGoogle.endsWith('@gmail.com');
       const esDuocUC = emailGoogle.endsWith('@duocuc.cl');
       const esProfesorDuoc = emailGoogle.endsWith('@profesor.duoc.cl');
@@ -200,8 +198,7 @@ export default function Registro() {
         return;
       }
 
-      // Verificar en Spring Boot si la cuenta ya existe
-      const resCheck = await fetch(`${API_BASE_URL}/usuarios`);
+      const resCheck = await apiFetch('/usuarios');
       let usuarioExiste = false;
 
       if (resCheck.ok) {
@@ -209,13 +206,11 @@ export default function Registro() {
         usuarioExiste = usuariosBD.some((u) => u.email && u.email.toLowerCase() === emailGoogle);
       }
 
-      // SI LA CUENTA YA EXISTE: Muestra alerta roja y se queda en la vista de registro
       if (usuarioExiste) {
         setErrorServidor(`⚠️ El correo "${emailGoogle}" ya se encuentra registrado. Por favor, dirígete a "Iniciar sesión".`);
         return;
       }
 
-      // SI ES NUEVO: Se crea el usuario en Spring Boot, lo logea automáticamente y redirige al inicio
       const esAdminRol = esProfesorDuoc;
       const nuevoUsuario = {
         nombre: nombreGoogle,
@@ -227,17 +222,15 @@ export default function Registro() {
         esadmin: esAdminRol
       };
 
-      const resCrear = await fetch(`${API_BASE_URL}/usuarios`, {
+      const resCrear = await apiFetch('/usuarios', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(nuevoUsuario)
       });
 
       if (resCrear.ok) {
         const usuarioCreado = await resCrear.json();
         const rolTexto = esAdminRol ? 'Administrador' : 'Cliente';
-        
-        // Login automático en el contexto
+
         await iniciarSesion(usuarioCreado.email, usuarioCreado.password);
         setMensajeToast(`🎉 ¡Cuenta creada con éxito como ${rolTexto}! Redirigiendo...`);
 
@@ -287,9 +280,8 @@ export default function Registro() {
     };
 
     try {
-      const response = await fetch(`${API_BASE_URL}/usuarios`, {
+      const response = await apiFetch('/usuarios', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(nuevoUsuario)
       });
 
@@ -313,9 +305,9 @@ export default function Registro() {
 
       <div className="login-card-split login-card-wide">
         <div className="login-image-side">
-          <img 
-            src="https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1000&q=80" 
-            alt="Únete a Sabor & Aroma" 
+          <img
+            src="https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1000&q=80"
+            alt="Únete a Sabor & Aroma"
           />
           <div className="login-image-overlay">
             <h3>¡Únete a Sabor & Aroma!</h3>
@@ -498,4 +490,4 @@ export default function Registro() {
       </div>
     </div>
   );
-}
+}s

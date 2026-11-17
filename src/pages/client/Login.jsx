@@ -5,8 +5,7 @@ import Form from 'react-bootstrap/Form';
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 import { useAuth } from '../../context/AuthContext';
-
-const API_BASE_URL = 'http://localhost:8080/api';
+import { apiFetch } from '../../service/api';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -19,9 +18,9 @@ export default function Login() {
 
   const redirigirSegunRol = (usuario) => {
     const esAdmin = Boolean(
-      usuario.esadmin === true || 
-      usuario.esadmin === 1 || 
-      usuario.esAdmin === true || 
+      usuario.esadmin === true ||
+      usuario.esadmin === 1 ||
+      usuario.esAdmin === true ||
       usuario.esAdmin === 1 ||
       usuario.email?.toLowerCase().endsWith('@profesor.duoc.cl')
     );
@@ -73,8 +72,8 @@ export default function Login() {
         return;
       }
 
-      // Buscar usuario en Spring Boot
-      const resCheck = await fetch(`${API_BASE_URL}/usuarios`);
+      // Buscar usuario en Spring Boot mediante apiFetch
+      const resCheck = await apiFetch('/usuarios');
       let usuarioBD = null;
 
       if (resCheck.ok) {
@@ -88,9 +87,9 @@ export default function Login() {
         return;
       }
 
-      // Autenticar la sesión en el contexto global
+      // Autenticar la sesión en el contexto global para obtener el token JWT
       const resLogin = await iniciarSesion(usuarioBD.email, usuarioBD.password);
-      
+
       if (resLogin.exito) {
         redirigirSegunRol(resLogin.usuario || usuarioBD);
       } else {
@@ -108,9 +107,9 @@ export default function Login() {
     <div className="login-wrapper">
       <div className="login-card-split">
         <div className="login-image-side">
-          <img 
-            src="https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=1000&q=80" 
-            alt="Gastronomía Sabor & Aroma" 
+          <img
+            src="https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=1000&q=80"
+            alt="Gastronomía Sabor & Aroma"
           />
           <div className="login-image-overlay">
             <h3>¡Bienvenido a Sabor & Aroma!</h3>

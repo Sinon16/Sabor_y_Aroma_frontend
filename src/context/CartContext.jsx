@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
+import { apiFetch } from '../service/api';
 
-const API_BASE_URL = 'http://localhost:8080/api';
 const CartContext = createContext();
 
 export const useCart = () => {
@@ -32,7 +32,7 @@ export const CartProvider = ({ children }) => {
     return precioBase;
   };
 
-  // Cargar elementos del carrito desde Spring Boot (H2)
+  // Cargar elementos del carrito desde Spring Boot (con JWT)
   const cargarCarrito = useCallback(async () => {
     const userId = obtenerIdUsuario(usuario);
 
@@ -44,18 +44,18 @@ export const CartProvider = ({ children }) => {
 
     setCargandoCarrito(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/carrito?usuario_id=${userId}`);
+      const res = await apiFetch(`/carrito?usuario_id=${userId}`);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
-          const itemsFormateados = data.map(item => {
+          const itemsFormateados = data.map((item) => {
             const productoObj = item.producto || {};
             const precioBase = Number(productoObj.precio || 0);
             const porcentajeDesc = Number(productoObj.oferta?.porcentajeDescuento || 0);
             const precioFinal = calcularPrecioFinal(productoObj);
 
             return {
-              id: item.id, // ID único del registro en la tabla 'carrito'
+              id: item.id,
               producto_id: productoObj.id,
               nombre: productoObj.nombre,
               descripcion: productoObj.descripcion,
@@ -63,7 +63,7 @@ export const CartProvider = ({ children }) => {
               precio: precioFinal,
               porcentaje_descuento: porcentajeDesc,
               imagen: productoObj.imagen,
-              cantidad: Number(item.cantidad)
+              cantidad: Number(item.cantidad),
             };
           });
           setItemsCarrito(itemsFormateados);
@@ -81,7 +81,7 @@ export const CartProvider = ({ children }) => {
     cargarCarrito();
   }, [cargarCarrito]);
 
-  // Agregar producto al carrito en Spring Boot
+  // Agregar producto al carrito en Spring Boot (con JWT)
   const agregarAlCarrito = async (producto) => {
     const userId = obtenerIdUsuario(usuario);
     if (!userId) {
@@ -89,18 +89,17 @@ export const CartProvider = ({ children }) => {
     }
 
     try {
-      const res = await fetch(`${API_BASE_URL}/carrito`, {
+      const res = await apiFetch('/carrito', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           usuario_id: userId,
           producto_id: producto.id,
-          cantidad: 1
-        })
+          cantidad: 1,
+        }),
       });
 
       if (res.ok) {
-        await cargarCarrito(); // Recargar el estado del carrito
+        await cargarCarrito();
         return { exito: true };
       }
     } catch (err) {
@@ -109,7 +108,7 @@ export const CartProvider = ({ children }) => {
     return { exito: false };
   };
 
-  // Actualizar la cantidad de un item por su ID de carrito
+  // Actualizar la cantidad de un item por su ID de carrito (con JWT)
   const actualizarCantidad = async (itemId, nuevaCantidad) => {
     const userId = obtenerIdUsuario(usuario);
     if (!userId) return;
@@ -119,21 +118,19 @@ export const CartProvider = ({ children }) => {
       return;
     }
 
-    // Actualización optimista de UI
-    setItemsCarrito(prevItems =>
-      prevItems.map(item =>
+    setItemsCarrito((prevItems) =>
+      prevItems.map((item) =>
         item.id === itemId ? { ...item, cantidad: nuevaCantidad } : item
       )
     );
 
     try {
-      await fetch(`${API_BASE_URL}/carrito/${itemId}`, {
+      await apiFetch(`/carrito/${itemId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           usuario_id: userId,
-          cantidad: nuevaCantidad
-        })
+          cantidad: nuevaCantidad,
+        }),
       });
       await cargarCarrito();
     } catch (err) {
@@ -141,16 +138,16 @@ export const CartProvider = ({ children }) => {
     }
   };
 
-  // Eliminar un item del carrito por su ID
+  // Eliminar un item del carrito por su ID (con JWT)
   const eliminarDelCarrito = async (itemId) => {
     const userId = obtenerIdUsuario(usuario);
     if (!userId) return;
 
-    setItemsCarrito(prevItems => prevItems.filter(item => item.id !== itemId));
+    setItemsCarrito((prevItems) => prevItems.filter((item) => item.id !== itemId));
 
     try {
-      await fetch(`${API_BASE_URL}/carrito/${itemId}?usuario_id=${userId}`, {
-        method: 'DELETE'
+      await apiFetch(`/carrito/${itemId}?usuario_id=${userId}`, {
+        method: 'DELETE',
       });
       await cargarCarrito();
     } catch (err) {
@@ -158,7 +155,7 @@ export const CartProvider = ({ children }) => {
     }
   };
 
-  // Vaciar completamente el carrito del usuario
+  // Vaciar completamente el carrito del usuario (con JWT)
   const limpiarCarrito = async () => {
     const userId = obtenerIdUsuario(usuario);
     setItemsCarrito([]);
@@ -166,8 +163,8 @@ export const CartProvider = ({ children }) => {
 
     if (userId) {
       try {
-        await fetch(`${API_BASE_URL}/carrito/vaciar?usuario_id=${userId}`, {
-          method: 'DELETE'
+        await apiFetch(`/carrito/vaciar?usuario_id=${userId}`, {
+          method: 'DELETE',
         });
       } catch (err) {
         console.error('Error vaciando carrito en Spring Boot:', err);
@@ -214,7 +211,7 @@ export const CartProvider = ({ children }) => {
         obtenerSubtotal,
         obtenerPrecioTotal,
         aplicarCupon,
-        descuentoPorcentaje
+        descuentoPorcentaje,
       }}
     >
       {children}

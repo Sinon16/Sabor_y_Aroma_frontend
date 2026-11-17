@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
-
-const API_BASE_URL = 'http://localhost:8080/api';
+import { apiFetch } from '../../service/api';
 
 export default function Comprar() {
   const { itemsCarrito, obtenerPrecioTotal, limpiarCarrito } = useCart();
@@ -43,7 +42,7 @@ export default function Comprar() {
   useEffect(() => {
     const cargarRegiones = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/regiones`);
+        const res = await apiFetch('/regiones');
         if (res.ok) {
           const data = await res.json();
           setListaRegiones(data);
@@ -63,7 +62,7 @@ export default function Comprar() {
     }
     const cargarComunas = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/comunas?region=${encodeURIComponent(formData.region)}`);
+        const res = await apiFetch(`/comunas?region=${encodeURIComponent(formData.region)}`);
         if (res.ok) {
           const data = await res.json();
           setListaComunas(data);
@@ -122,9 +121,9 @@ export default function Comprar() {
         items: detallesFormateados
       };
 
-      const res = await fetch(`${API_BASE_URL}/ordenes`, {
+      // Envía la orden adjuntando el token JWT automáticamente
+      const res = await apiFetch('/ordenes', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(ordenPayload)
       });
 

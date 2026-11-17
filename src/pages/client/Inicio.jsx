@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Carousel from 'react-bootstrap/Carousel';
-
-// URL Base del Backend Spring Boot
-const API_BASE_URL = 'http://localhost:8080/api';
+import { apiFetch } from '../../service/api';
 
 export default function Inicio() {
   const [productosBD, setProductosBD] = useState([]);
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/productos`)
+    apiFetch('/productos')
       .then((res) => {
         if (!res.ok) throw new Error('Error al obtener productos');
         return res.json();
@@ -52,7 +50,7 @@ export default function Inicio() {
               <Link to={`/catalogo?id=${idSushi}`} title="Ver detalle de Sushi">
                 <img
                   className="d-block w-100 carousel-img"
-                  src="/img/sushi-index.jpg" 
+                  src="/img/sushi-index.jpg"
                   alt="Sushi destacado"
                   onError={(e) => { e.target.src = 'https://via.placeholder.com/800x400?text=Sushi+Destacado'; }}
                 />
@@ -63,7 +61,7 @@ export default function Inicio() {
               <Link to={`/catalogo?id=${idCaesar}`} title="Ver detalle de Ensalada César">
                 <img
                   className="d-block w-100 carousel-img"
-                  src="/img/ceasar-index.jpg" 
+                  src="/img/ceasar-index.jpg"
                   alt="Ensalada César destacada"
                   onError={(e) => { e.target.src = 'https://via.placeholder.com/800x400?text=Ensalada+Cesar+Destacada'; }}
                 />
@@ -74,7 +72,7 @@ export default function Inicio() {
               <Link to={`/catalogo?id=${idHamburguesa}`} title="Ver detalle de Hamburguesa">
                 <img
                   className="d-block w-100 carousel-img"
-                  src="/img/hamburguesa-index.webp" 
+                  src="/img/hamburguesa-index.webp"
                   alt="Hamburguesa destacada"
                   onError={(e) => { e.target.src = 'https://via.placeholder.com/800x400?text=Hamburguesa+Destacada'; }}
                 />
