@@ -1,3 +1,4 @@
+
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
@@ -5,6 +6,8 @@ import { AuthProvider } from '../../context/AuthContext.jsx';
 import AdminSidebar from '../../components/admin/AdminSidebar.jsx';
 
 describe('Menú Lateral del Administrador (Sidebar)', () => {
+
+  // TEST 1: Enlaces principales
   it('Debe renderizar los enlaces principales del panel', () => {
     render(
       <AuthProvider>
@@ -14,14 +17,14 @@ describe('Menú Lateral del Administrador (Sidebar)', () => {
       </AuthProvider>
     );
 
-    // CORRECCIÓN 1: Buscamos "Panel Admin" tal como está en tu menú
     expect(screen.getByText(/Panel Admin/i)).toBeInTheDocument();
     expect(screen.getByText(/Productos/i)).toBeInTheDocument();
     expect(screen.getByText(/Usuarios/i)).toBeInTheDocument();
     expect(screen.getByText(/Órdenes/i)).toBeInTheDocument();
   });
 
-  it('Debe renderizar el botón para volver a la Tienda', () => {
+  // TEST 2: Volver a la tienda
+  it('Debe renderizar el enlace para volver a la Tienda', () => {
     render(
       <AuthProvider>
         <MemoryRouter>
@@ -29,10 +32,11 @@ describe('Menú Lateral del Administrador (Sidebar)', () => {
         </MemoryRouter>
       </AuthProvider>
     );
-    // CORRECCIÓN 2: Buscamos un 'link' (etiqueta <a>) en lugar de un 'button'
+
     expect(screen.getByRole('link', { name: /Ver Tienda/i })).toBeInTheDocument();
   });
 
+  // TEST 3: Cerrar sesión
   it('Debe renderizar el botón de Cerrar Sesión en rojo', () => {
     render(
       <AuthProvider>
@@ -41,10 +45,11 @@ describe('Menú Lateral del Administrador (Sidebar)', () => {
         </MemoryRouter>
       </AuthProvider>
     );
-    // Este sí es un <button> real, así que queda igual
-    expect(screen.getByRole('button', { name: /Cerrar Sesión/i })).toBeInTheDocument();
+
+    expect(screen.getByRole('button', { name: /Cerrar Sesión/i })).toHaveClass('btn-danger');
   });
 
+  // TEST 4: Dashboard
   it('Debe renderizar el enlace principal al Dashboard', () => {
     render(
       <AuthProvider>
@@ -53,8 +58,8 @@ describe('Menú Lateral del Administrador (Sidebar)', () => {
         </MemoryRouter>
       </AuthProvider>
     );
+
     expect(screen.getByText(/Dashboard/i)).toBeInTheDocument();
   });
+
 });
-
-
