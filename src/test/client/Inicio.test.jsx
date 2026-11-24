@@ -1,23 +1,42 @@
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { apiFetch } from '../../service/api';
 import Inicio from '../../pages/client/Inicio.jsx';
 
+vi.mock('../../service/api', () => ({
+  apiFetch: vi.fn(),
+}));
+
+const productosMock = [
+  { id: 10, nombre: 'Sushi Roll Especial' },
+  { id: 20, nombre: 'Ensalada César' },
+  { id: 30, nombre: 'Hamburguesa Clásica' },
+];
+
 describe('Vista de Inicio', () => {
-  it('Debe renderizar los elementos principales de la página', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    apiFetch.mockResolvedValue({
+      ok: true,
+      json: async () => productosMock,
+    });
+  });
+
+  it('Debe renderizar los elementos principales de la página y cargar productos con apiFetch', async () => {
     render(
       <MemoryRouter>
         <Inicio />
       </MemoryRouter>
     );
 
-    // 1. Verificar el título principal
     expect(screen.getByText('¡Comida deliciosa directo a tu puerta!')).toBeInTheDocument();
-
-    // 2. Verificar el botón de ver menú completo
     expect(screen.getByRole('link', { name: /ver menú completo/i })).toBeInTheDocument();
-
-    // 3. Verificar las imágenes destacadas del carrusel
     expect(screen.getByAltText('Sushi destacado')).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith('/productos');
+      expect(screen.getByTitle('Ver detalle de Sushi')).toHaveAttribute('href', '/catalogo?id=10');
+    });
   });
 });

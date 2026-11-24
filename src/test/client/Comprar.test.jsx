@@ -4,43 +4,43 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import * as CartContext from '../../context/CartContext.jsx';
 import * as AuthContext from '../../context/AuthContext.jsx';
+import { apiFetch } from '../../service/api';
 import Comprar from '../../pages/client/Comprar.jsx';
 
-describe('Vista de Comprar (Checkout)', () => {
+vi.mock('../../service/api', () => ({
+  apiFetch: vi.fn(),
+}));
 
+describe('Vista de Comprar (Checkout)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Simular llamadas a la API de regiones y orden
-    vi.stubGlobal('fetch', vi.fn((url) => {
-      if (url.includes('/api/ordenes')) {
+    apiFetch.mockImplementation((endpoint) => {
+      if (endpoint.includes('/ordenes')) {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ orden_id: 123456 })
+          json: () => Promise.resolve({ id: 123456 }),
         });
       }
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve([])
+        json: () => Promise.resolve([]),
       });
-    }));
-
-    // Simular usuario autenticado
-    vi.spyOn(AuthContext, 'useAuth').mockReturnValue({
-      usuario: { id: 1, nombre: 'Juan Pérez', email: 'juan@duoc.cl', region: 'Metropolitana', comuna: 'Santiago' }
     });
 
-    // Simular productos en el carrito
+    vi.spyOn(AuthContext, 'useAuth').mockReturnValue({
+      usuario: { id: 1, nombre: 'Juan Pérez', email: 'juan@duoc.cl', region: 'Metropolitana', comuna: 'Santiago' },
+    });
+
     vi.spyOn(CartContext, 'useCart').mockReturnValue({
       itemsCarrito: [
-        { id: 1, nombre: 'Pizza Mozzarella', precio: 8900, cantidad: 1, imagen: '/pizza.jpg' }
+        { id: 1, nombre: 'Pizza Mozzarella', precio: 8900, cantidad: 1, imagen: '/pizza.jpg' },
       ],
       obtenerPrecioTotal: () => 8900,
-      limpiarCarrito: vi.fn()
+      limpiarCarrito: vi.fn(),
     });
   });
 
-  // TEST 1: Formulario principal de datos (Asíncrono con waitFor para limpiar el aviso de act)
   it('Debe renderizar la información del cliente y los campos de dirección de entrega', async () => {
     render(
       <MemoryRouter>
@@ -55,7 +55,6 @@ describe('Vista de Comprar (Checkout)', () => {
     });
   });
 
-  // TEST 2: Flujo de Pago Correcto
   it('Debe mostrar la pantalla de confirmación exitosa al hacer clic en Pago Correcto', async () => {
     const user = userEvent.setup();
 
@@ -73,7 +72,6 @@ describe('Vista de Comprar (Checkout)', () => {
     });
   });
 
-  // TEST 3: Flujo de Pago Incorrecto
   it('Debe mostrar la pantalla de error al hacer clic en Pago Incorrecto', async () => {
     const user = userEvent.setup();
 
@@ -90,5 +88,4 @@ describe('Vista de Comprar (Checkout)', () => {
       expect(screen.getByText(/no se pudo realizar el pago/i)).toBeInTheDocument();
     });
   });
-
 });

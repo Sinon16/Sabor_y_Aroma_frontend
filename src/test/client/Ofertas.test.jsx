@@ -3,9 +3,13 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { AuthProvider } from '../../context/AuthContext.jsx';
 import { CartProvider } from '../../context/CartContext.jsx';
+import { apiFetch } from '../../service/api';
 import Ofertas from '../../pages/client/Ofertas.jsx';
 
-// Producto de prueba simulado con descuento activo
+vi.mock('../../service/api', () => ({
+  apiFetch: vi.fn(),
+}));
+
 const productosMock = [
   {
     id: 1,
@@ -13,19 +17,17 @@ const productosMock = [
     precio: 10000,
     porcentaje_descuento: 20,
     descripcion: 'Deliciosa pizza artesanal con descuento',
-    imagen: '/pizza.jpg'
-  }
+    imagen: '/pizza.jpg',
+  },
 ];
 
 describe('Vista de Ofertas', () => {
   beforeEach(() => {
-    // Simular la respuesta de la API de productos
-    vi.stubGlobal('fetch', vi.fn(() =>
-      Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve(productosMock)
-      })
-    ));
+    vi.clearAllMocks();
+    apiFetch.mockResolvedValue({
+      ok: true,
+      json: async () => productosMock,
+    });
   });
 
   it('Debe renderizar el título principal y la lista de productos en oferta', async () => {
@@ -39,8 +41,8 @@ describe('Vista de Ofertas', () => {
       </AuthProvider>
     );
 
-    // Espera a que termine la carga de datos de la API
     await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith('/productos');
       expect(screen.getByRole('heading', { name: /ofertas & descuentos especiales/i })).toBeInTheDocument();
       expect(screen.getByText('Pizza en Oferta')).toBeInTheDocument();
       expect(screen.getByText('-20% OFF')).toBeInTheDocument();
