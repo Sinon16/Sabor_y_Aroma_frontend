@@ -18,6 +18,7 @@ export default function ProductosAdmin() {
   });
 
   const [editandoId, setEditandoId] = useState(null);
+  const [filtroActivo, setFiltroActivo] = useState('todos');
   const [toast, setToast] = useState({ mostrar: false, mensaje: '', tipo: 'success' });
 
   const location = useLocation();
@@ -175,6 +176,11 @@ export default function ProductosAdmin() {
     ? Math.round(Number(formData.precio) * (1 - porcentajeActivo / 100))
     : null;
 
+  // Igual que la versión anterior: mostrar todos o solo stock crítico (10 o menos).
+  const productosFiltrados = filtroActivo === 'criticos'
+    ? productos.filter(producto => Number(producto.stock) <= 10)
+    : productos;
+
   return (
     <div className="container-fluid py-4 position-relative">
       {toast.mostrar && (
@@ -291,6 +297,25 @@ export default function ProductosAdmin() {
 
         <div className="col-md-8">
           <div className="card shadow-sm">
+            <div className="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <h5 className="mb-0">Lista de Inventario</h5>
+              <div className="btn-group" role="group" aria-label="Filtro de inventario">
+                <button
+                  type="button"
+                  className={`btn ${filtroActivo === 'todos' ? 'btn-primary' : 'btn-outline-primary'}`}
+                  onClick={() => setFiltroActivo('todos')}
+                >
+                  Todos los Productos
+                </button>
+                <button
+                  type="button"
+                  className={`btn ${filtroActivo === 'criticos' ? 'btn-danger' : 'btn-outline-danger'}`}
+                  onClick={() => setFiltroActivo('criticos')}
+                >
+                  Stock Crítico (≤ 10)
+                </button>
+              </div>
+            </div>
             <div className="card-body p-0 p-md-3">
               <div className="table-responsive">
                 <table className="table table-hover align-middle mb-0">
@@ -306,10 +331,16 @@ export default function ProductosAdmin() {
                     </tr>
                   </thead>
                   <tbody>
-                    {productos.length === 0 ? (
-                      <tr><td colSpan="7" className="text-center py-4">No hay productos en el inventario.</td></tr>
+                    {productosFiltrados.length === 0 ? (
+                      <tr>
+                        <td colSpan="7" className="text-center py-4">
+                          {filtroActivo === 'criticos'
+                            ? 'No hay productos con stock crítico.'
+                            : 'No hay productos en el inventario.'}
+                        </td>
+                      </tr>
                     ) : (
-                      productos.map(prod => {
+                      productosFiltrados.map(prod => {
                         const porcOferta = prod.oferta ? getOfertaPorcentaje(prod.oferta) : 0;
                         return (
                           <tr key={prod.id}>
@@ -330,8 +361,8 @@ export default function ProductosAdmin() {
                             </td>
                             <td>${Number(prod.precio).toLocaleString('es-CL')}</td>
                             <td>
-                              <span className={`badge ${prod.stock > 5 ? 'bg-success' : prod.stock > 0 ? 'bg-warning text-dark' : 'bg-danger'}`}>
-                                {prod.stock !== undefined ? prod.stock : 0} u.
+                              <span className={`badge ${Number(prod.stock) <= 10 ? 'bg-danger' : 'bg-success'}`}>
+                                {prod.stock ?? 0} u.
                               </span>
                             </td>
                             <td>
