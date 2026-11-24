@@ -1,16 +1,8 @@
 # Manual de Usuario & Guía del Sistema — Sabor & Aroma 🍔
 
 **Versión del Documento:** 1.0  
-**Fecha de Creación:** 23/11/2026  
+**Fecha de Creación:** 19/11/2026  
 
----
-
-### Evidencia de la Documentación Gráfica
-Siguiendo las directrices de estandarización técnica establecidas en la plantilla base del manual de usuario:
-- Cada captura de pantalla e imagen integrada en este manual se encuentra documentada individualmente mediante **Número, Título, Imagen y Nota**.
-- Todas las imágenes incorporan un **borde continuo de 1px de color negro** (`border: 1px solid black;`).
-
----
 
 ## 1. Introducción
 
