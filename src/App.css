@@ -1713,3 +1713,47 @@ img {
   }
 }
 
+/* =============================================================
+   AJUSTE DE PANTALLA COMPLETA Y FOOTER AL FONDO
+   ============================================================= */
+.site-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  width: 100%;
+}
+
+.site-main {
+  flex: 1 0 auto;
+  width: 100%;
+  max-width: 100% !important;
+  padding: 1.5rem 3rem;
+}
+
+/* Elimina los bordes laterales de Bootstrap en Inicio, Catálogo, Ofertas, Nosotros, Blog y Carrito */
+.site-main .container {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Amplía Checkout / Comprobante y Detalle de producto */
+.checkout-container,
+.detalle-container {
+  width: 100% !important;
+  max-width: 1400px !important;
+  margin: 1rem auto !important;
+}
+
+/* Amplía las tarjetas de Login, Registro y Contacto en 2 columnas */
+.login-card-split,
+.login-card-wide {
+  max-width: 1300px !important;
+}
+
+@media (max-width: 768px) {
+  .site-main {
+    padding: 1rem;
+  }
+}

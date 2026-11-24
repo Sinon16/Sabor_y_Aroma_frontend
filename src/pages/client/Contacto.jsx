@@ -29,7 +29,6 @@ export default function Contacto() {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
 
-    // Ocultar el mensaje de error del campo que se está editando
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: '' }));
     }
@@ -42,14 +41,12 @@ export default function Contacto() {
     const email = formData.email.trim().toLowerCase();
     const comentario = formData.comentario.trim();
 
-    // 1. Validación de Nombre
     if (!nombre) {
       newErrors.nombre = 'El nombre completo es obligatorio.';
     } else if (nombre.length > 100) {
       newErrors.nombre = 'El nombre no puede tener más de 100 caracteres.';
     }
 
-    // 2. Validación de Correo
     if (!email) {
       newErrors.email = 'El correo electrónico es obligatorio.';
     } else if (email.length > 100) {
@@ -64,7 +61,6 @@ export default function Contacto() {
       }
     }
 
-    // 3. Validación de Comentario
     if (!comentario) {
       newErrors.comentario = 'El comentario es obligatorio.';
     } else if (comentario.length > 500) {
@@ -82,7 +78,6 @@ export default function Contacto() {
     if (validate()) {
       setMensajeExito('¡Mensaje enviado con éxito! Nos pondremos en contacto contigo pronto.');
 
-      // Reiniciar comentario y mantener datos de usuario si está autenticado
       setFormData((prev) => ({
         nombre: isLoggedIn ? prev.nombre : '',
         email: isLoggedIn ? prev.email : '',
@@ -92,16 +87,27 @@ export default function Contacto() {
   };
 
   return (
-    <div className="container">
-      <main className="main-content">
-        <div className="form-card">
-          <h2>Contáctanos</h2>
+    <div className="login-wrapper">
+      <div className="login-card-split">
+        {/* Lado izquierdo: Imagen decorativa */}
+        <div className="login-image-side">
+          <img
+            src="/img/hamburguesa-index.webp"
+            alt="Contáctanos Sabor & Aroma"
+          />
+          <div className="login-image-overlay">
+            <h3>¿Tienes dudas o sugerencias?</h3>
+            <p>Escríbenos y nuestro equipo de Sabor & Aroma te responderá a la brevedad.</p>
+          </div>
+        </div>
 
-          {/* Mensaje global de éxito */}
+        {/* Lado derecho: Formulario de contacto */}
+        <div className="login-form-side">
+          <h2 className="form-title-centered">Contáctanos</h2>
+
           {mensajeExito && <div className="alert-success">{mensajeExito}</div>}
 
           <form onSubmit={handleSubmit} noValidate>
-            
             {/* CAMPO NOMBRE */}
             <div className="form-group">
               <label htmlFor="nombre-contacto">NOMBRE COMPLETO</label>
@@ -142,7 +148,7 @@ export default function Contacto() {
               <textarea
                 id="comentario-contacto"
                 name="comentario"
-                rows="5"
+                rows="4"
                 value={formData.comentario}
                 onChange={handleChange}
                 className={errors.comentario ? 'input-error' : ''}
@@ -152,7 +158,9 @@ export default function Contacto() {
                   width: '100%',
                   padding: '0.8rem',
                   borderRadius: '6px',
-                  fontFamily: 'inherit'
+                  border: '1px solid #ffcc80',
+                  fontFamily: 'inherit',
+                  resize: 'vertical'
                 }}
               ></textarea>
               {errors.comentario && <span className="error-message">{errors.comentario}</span>}
@@ -163,7 +171,7 @@ export default function Contacto() {
             </button>
           </form>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

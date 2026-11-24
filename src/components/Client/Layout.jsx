@@ -6,9 +6,8 @@ export default function Layout() {
   return (
     <div className="site-wrapper">
       <Navbar />
-      
-      {/* El contenido dinámico de cada vista se renderizará aquí */}
-      <main className="container my-4">
+
+      <main className="site-main">
         <Outlet />
       </main>
 
