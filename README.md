@@ -4,6 +4,7 @@
 **Fecha de Creación:** 19/11/2026  
 
 
+
 ## 1. Introducción
 
 ### Propósito del documento
@@ -102,7 +103,7 @@ Asegúrate de mantener ambas terminales abiertas en paralelo:
 #### Iniciar Sesión
 1. Presione el enlace **Iniciar sesión** en la barra superior.
 2. Ingrese su correo electrónico y contraseña registrada.
-3. El cliente `apiFetch` enviará las credenciales a Spring Boot (`http://localhost:8080/api/auth/login`), validará el usuario y almacenará el token **JWT** en `localStorage`. Si el usuario cuenta con el rol de administrador, se activará el botón **⚙️ Panel Administrador** en el encabezado de navegación.
+3. El cliente `apiFetch` enviará las credenciales a Spring Boot (`http://localhost:8080/api/usuarios/login`), validará el usuario y almacenará el token **JWT** en `localStorage`. Si el usuario cuenta con el rol de administrador, se activará el botón **⚙️ Panel Administrador** en el encabezado de navegación.
 
 ### Interfaz de usuario inicial
 
@@ -111,7 +112,7 @@ La pantalla de bienvenida presenta el encabezado global, el menú de categorías
 **Número:** Figura 1  
 **Título:** Interfaz Principal y Pantalla de Inicio de Sabor & Aroma  
 **Imagen:**  
-<img src="public/img/inicio_de_sabor_y_aroma.png" alt="Pantalla de Inicio de Sabor y Aroma" width="100%" />  
+<img src="https://lh3.googleusercontent.com/d/1rXwbOz5nVE5ALIXJFatx0R6_hxLu7HNt" alt="Pantalla de Inicio de Sabor y Aroma" width="100%" />  
 **Nota:** Muestra el encabezado principal con la barra de navegación, bienvenida personalizada al usuario autenticado, enlace al Panel Administrador y el mensaje principal con botón directo hacia el menú completo.
 
 ---
@@ -128,7 +129,7 @@ El sistema ofrece dos alternativas para la búsqueda de platillos gastronómicos
 **Número:** Figura 2  
 **Título:** Menú Gastronómico y Catálogo de Productos  
 **Imagen:**  
-<img src="public/img/catalogo_sabor_y_aroma.png" alt="Catálogo de Productos de Sabor y Aroma" width="100%" />  
+<img src="https://lh3.googleusercontent.com/d/1qLTOrlyHyNhCTtWQmPMDnYn1vh7u422v" alt="Catálogo de Productos de Sabor y Aroma" width="100%" />  
 **Nota:** Ilustra el catálogo estructurado con menú lateral de categorías (Comida Rápida, Saludable, Postres, Bebidas, Vegana) y las tarjetas de platillos con precio y botón "Agregar al Pedido".
 
 #### 2. Realizar un Pedido (Carrito & Checkout)
@@ -144,7 +145,7 @@ Los usuarios con privilegios administrativos tienen acceso exclusivo al Panel de
 **Número:** Figura 3  
 **Título:** Panel de Control y Dashboard de Administración  
 **Imagen:**  
-<img src="public/img/panel_de_admin_sabor_y_aroma.png" alt="Panel de Administración Sabor y Aroma" width="100%" />  
+<img src="https://lh3.googleusercontent.com/d/1867gANz18L0gFI-EHwHRH-g6TOu0_ueh" alt="Panel de Administración Sabor y Aroma" width="100%" />  
 **Nota:** Muestra el panel administrativo central con métricas clave en tiempo real (Compras Totales, Productos en Inventario, Usuarios Registrados) y accesos directos a los submódulos de gestión.
 
 El panel administrativo incluye los siguientes módulos funcionales:
@@ -185,4 +186,6 @@ El backend ([db-sabor-aroma](https://github.com/Sinon16/db-sabor-aroma)) impleme
 | **Público (`permitAll`)** | `/h2-console/**`, `/swagger-ui/**`, `/v3/api-docs/**`, `/api/auth/**`, `POST /api/usuarios/login`, `POST /api/usuarios`, `GET /api/usuarios/**`, y consultas `GET` de catálogo (`/api/productos/**`, `/api/categorias/**`, `/api/ofertas/**`, `/api/regiones/**`, `/api/comunas/**`). |
 | **Cliente y Admin (`CLIENTE`, `ADMIN`)** | Carrito (`/api/carrito/**`), creación de órdenes y detalles (`POST /api/ordenes/**`, `POST /api/detalle-ordenes/**`), consulta de pedidos por usuario (`GET /api/ordenes/usuario/**`) y registro de reportes (`POST /api/reportes/**`). |
 | **Solo Administrador (`ADMIN`)** | Operaciones `POST`, `PUT`, `DELETE` en `/api/productos/**`, `/api/categorias/**`, `/api/ofertas/**`; modificación y eliminación de usuarios (`PUT`, `DELETE /api/usuarios/**`); gestión completa de `/api/ordenes/**`, `/api/detalle-ordenes/**` y `/api/reportes/**`. |
-````[cite: 26, 27, 28, 29, 30]
+````[cite: 1, 23, 25, 26, 27, 28, 29]
+
+Para que GitHub muestre las 3 capturas sin problemas, asegúrate de que en Google Drive cada archivo tenga el acceso configurado como **"Cualquier persona con el enlace" (Lector)**.
