@@ -186,6 +186,5 @@ El backend ([db-sabor-aroma](https://github.com/Sinon16/db-sabor-aroma)) impleme
 | **Público (`permitAll`)** | `/h2-console/**`, `/swagger-ui/**`, `/v3/api-docs/**`, `/api/auth/**`, `POST /api/usuarios/login`, `POST /api/usuarios`, `GET /api/usuarios/**`, y consultas `GET` de catálogo (`/api/productos/**`, `/api/categorias/**`, `/api/ofertas/**`, `/api/regiones/**`, `/api/comunas/**`). |
 | **Cliente y Admin (`CLIENTE`, `ADMIN`)** | Carrito (`/api/carrito/**`), creación de órdenes y detalles (`POST /api/ordenes/**`, `POST /api/detalle-ordenes/**`), consulta de pedidos por usuario (`GET /api/ordenes/usuario/**`) y registro de reportes (`POST /api/reportes/**`). |
 | **Solo Administrador (`ADMIN`)** | Operaciones `POST`, `PUT`, `DELETE` en `/api/productos/**`, `/api/categorias/**`, `/api/ofertas/**`; modificación y eliminación de usuarios (`PUT`, `DELETE /api/usuarios/**`); gestión completa de `/api/ordenes/**`, `/api/detalle-ordenes/**` y `/api/reportes/**`. |
-````[cite: 1, 23, 25, 26, 27, 28, 29]
+````
 
-Para que GitHub muestre las 3 capturas sin problemas, asegúrate de que en Google Drive cada archivo tenga el acceso configurado como **"Cualquier persona con el enlace" (Lector)**.
